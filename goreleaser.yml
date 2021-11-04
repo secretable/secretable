@@ -1,0 +1,19 @@
+builds:
+  - id: secretable
+    main: ./cmd/secretable.go
+    binary: secretable
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+      - arm
+
+archives:
+- format: binary
+
+universal_binaries:
+- id: secretable
+  replace: true
