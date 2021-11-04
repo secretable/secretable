@@ -18,7 +18,7 @@ Secretable is a telegram bot for managing passwords and others secrets stored in
 **WARNING:** After resetting the master password, the salt changes, which is stored in the environment variable `ST_SALT`, if the OS reboots, then the variable may disappear and the data will not be able to decrypt. Therefore, in cases of salt changes, we recommend saving the initialization of the environment variable in your OS initialization scripts or in the `--salt` flag when starting the bot.
 
 ## Install
-To install the bot, just download the binary file of the latest release for your OS from the [releases page](https://github.com/dzen-it/Secretable/releases)
+To install the bot, just download the binary file of the latest release for your OS from the [releases page](https://github.com/secretable/secretable/releases)
 
 ## Getting started
 ### 1. Generate Google Credentials file to access tables via Google API
