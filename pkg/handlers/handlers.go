@@ -20,6 +20,7 @@ import (
 	"math/rand"
 	"os"
 	"secretable/pkg/crypto"
+	"secretable/pkg/localizator"
 	"secretable/pkg/log"
 	"secretable/pkg/tables"
 	"strconv"
@@ -48,18 +49,20 @@ type Handler struct {
 	waitmpstates sync.Map
 	b            *tb.Bot
 	tp           *tables.TablesProvider
+	locales      *localizator.Localizator
 }
 
-func NewHandler(b *tb.Bot, tp *tables.TablesProvider, cleanupTime int, enc bool) *Handler {
+func NewHandler(b *tb.Bot, tp *tables.TablesProvider, locales *localizator.Localizator, cleanupTime int, enc bool) *Handler {
 	return &Handler{
-		b: b, tp: tp, cleanupTime: cleanupTime, encMode: enc,
+		b: b, tp: tp, locales: locales,
+		cleanupTime: cleanupTime, encMode: enc,
 	}
 }
 
 func (h *Handler) Delete(m *tb.Message) {
 	index, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(m.Text, "/delete")))
 	if err != nil {
-		sendMessage(m, h.b, "Wrong index. Need enter command to format as <code>/delete 7</code>")
+		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "delete_resp_wrong_index"))
 		return
 	}
 
@@ -70,11 +73,11 @@ func (h *Handler) Delete(m *tb.Message) {
 	}
 
 	if err != nil {
-		sendMessage(m, h.b, "Unable to delete the secret")
+		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "delete_unable_delete"))
 		return
 	}
 
-	sendMessage(m, h.b, "The secret deleted")
+	sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "delete_secret_deleted"))
 
 }
 
@@ -128,7 +131,7 @@ func (h *Handler) query(m *tb.Message) {
 	}
 
 	if !ok {
-		sendMessage(m, h.b, "No secrets found")
+		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "query_no_secrets"))
 	}
 }
 
@@ -177,7 +180,7 @@ func (h *Handler) queryEncrypted(m *tb.Message) {
 	}
 
 	if !ok {
-		sendMessage(m, h.b, "No secrets found")
+		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "query_no_secrets"))
 	}
 }
 
@@ -189,13 +192,13 @@ func (h *Handler) ResetPass(m *tb.Message) {
 	data := strings.TrimSpace(strings.TrimPrefix(m.Text, "/setpass"))
 
 	if data == "" {
-		sendMessage(m, h.b, "Master password cannot be empty. Example of a valid command: <code>/setpass your_new_master_pass</code>")
+		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_empty_pass"))
 		return
 	}
 
 	privkeyBytes, ok, err := getPrivkeyAsBytes(h.b, h.tp, m, h.mastePass)
 	if err != nil || !ok {
-		sendMessage(m, h.b, "Unable to set master password")
+		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 		return
 	}
 
@@ -206,7 +209,7 @@ func (h *Handler) ResetPass(m *tb.Message) {
 	cypher, err := crypto.EncryptWithPhrase([]byte(data), []byte(os.Getenv("ST_SALT")), nonce, privkeyBytes)
 	if err != nil {
 		log.Error("Encrypt with password: " + err.Error())
-		sendMessage(m, h.b, "Unable to set master password")
+		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 		return
 	}
 
@@ -214,16 +217,16 @@ func (h *Handler) ResetPass(m *tb.Message) {
 
 	if err = h.tp.SetKey(base58.Encode(cypher)); err != nil {
 		log.Error("Store encrypted key to table: " + err.Error())
-		sendMessage(m, h.b, "Unable to set master password")
+		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 		return
 	}
 
 	h.mastePass = data
-	sendMessage(m, h.b, "Master password setted")
+	sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpasspass_setted"))
 }
 
 func (h *Handler) Set(m *tb.Message) {
-	sendMessage(m, h.b, "Please enter your description, login and password separated by newline:")
+	sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "add_resp_command"))
 	h.setstates.Store(m.Chat.ID, true)
 }
 

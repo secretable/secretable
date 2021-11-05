@@ -58,7 +58,7 @@ func (h *Handler) ControlMasterPassMiddleware(use bool, isSetHandler bool, next 
 
 		if !isSetHandler || isSetHandler && !ok {
 			h.waitmpstates.Store(m.Chat.ID, true)
-			sendMessage(m, h.b, "Please enter a master password:")
+			sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "checkpass_please_enter_pass"))
 			return
 		}
 
@@ -76,7 +76,7 @@ func (h *Handler) setPass(m *tb.Message) {
 	_, ok, err := getPrivkeyAsBytes(h.b, h.tp, m, newMasterPass)
 	if err != nil {
 		log.Error("Get private key: " + err.Error())
-		sendMessage(m, h.b, "Unable to store master password")
+		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 		return
 	}
 
@@ -88,7 +88,7 @@ func (h *Handler) setPass(m *tb.Message) {
 		cypher, err := crypto.EncryptWithPhrase([]byte(newMasterPass), []byte(os.Getenv("ST_SALT")), nonce, binPrivkey)
 		if err != nil {
 			log.Error("Encrypt with phrase: " + err.Error())
-			sendMessage(m, h.b, "Unable to store master password")
+			sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 			return
 		}
 
@@ -97,14 +97,14 @@ func (h *Handler) setPass(m *tb.Message) {
 		err = h.tp.SetKey(base58.Encode(cypher))
 		if err != nil {
 			log.Error("Store to table: " + err.Error())
-			sendMessage(m, h.b, "Unable to store master password")
+			sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 			return
 		}
 	}
 
 	h.mastePass = newMasterPass
 
-	sendMessage(m, h.b, "Master password susccessful setted")
+	sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_pass_changed"))
 }
 
 func (h *Handler) ControlSetSecretMiddleware(isSetHandler bool, next func(m *tb.Message)) func(m *tb.Message) {
