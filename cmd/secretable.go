@@ -15,12 +15,15 @@
 package main
 
 import (
+	"embed"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"secretable/pkg/crypto"
 	"secretable/pkg/handlers"
+	"secretable/pkg/localizator"
 	"secretable/pkg/log"
 	"secretable/pkg/tables"
 
@@ -61,6 +64,9 @@ var cmds = []tb.Command{
 	},
 }
 
+//go:embed locales
+var localesFS embed.FS
+
 func main() {
 	_, err := flags.Parse(&opts)
 	if flags.WroteHelp(err) {
@@ -72,6 +78,7 @@ func main() {
 	}
 
 	log.Info("⏳ Initialization Secretable")
+
 	log.Info("📝 Google credentials: " + opts.GoogleCredentials)
 	log.Info("📄 Spreadsheet ID: " + opts.SpreadsheetID)
 	log.Info("🧹 Cleanup timeout: " + fmt.Sprint(opts.CleanupTime, " sec"))
@@ -86,6 +93,13 @@ func main() {
 			log.Info("🧂 Salt setted")
 		}
 	}
+
+	locales := new(localizator.Localizator)
+	if err = locales.InitFromFS(localesFS, "locales"); err != nil {
+		log.Fatal("Initialization locales: " + err.Error())
+	}
+
+	log.Info("🌎 Supported locales: " + strings.Join(locales.GetLocales(), ", "))
 
 	tableProvider, err := tables.NewTablesProvider(opts.GoogleCredentials, opts.SpreadsheetID)
 	if err != nil {
@@ -110,7 +124,7 @@ func main() {
 		log.Fatal("Unable to create new bot instance: " + err.Error())
 	}
 
-	handler := handlers.NewHandler(b, tableProvider, opts.CleanupTime, !opts.Unencrypted)
+	handler := handlers.NewHandler(b, tableProvider, locales, opts.CleanupTime, !opts.Unencrypted)
 
 	startMessage := "Welcome! Just enter text into the chat to find secrets or use the commands:\n\n"
 	for _, cmd := range cmds {
