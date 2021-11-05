@@ -59,7 +59,6 @@ func (l *Localizator) GetLocales() []string {
 }
 
 func (l *Localizator) Get(locale string, key string) string {
-	fmt.Println(locale + "." + key)
 	v, ok := l.m.Load(locale + "." + key)
 	if !ok {
 		if locale != "en" {
