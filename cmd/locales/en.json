@@ -1,0 +1,12 @@
+{
+    "delete_resp_wrong_index": "Wrong index. Need enter command to format as <code>/delete 7</code>",
+    "delete_unable_delete": "Unable to delete the secret",
+    "delete_secrete_deleted": "The secret deleted",
+    "query_no_secrets": "No secrets found",
+    "setpass_unable_set": "Unable to set master password",
+    "setpass_empty_pass": "Master password cannot be empty. Example of a valid command: <code>/setpass your_new_master_pass</code>",
+    "setpasspass_setted": "Master password setted",
+    "add_resp_command": "Please enter your description, login and password separated by newline:",
+    "checkpass_please_enter_pass": "Please enter a master password:",
+    "setpass_pass_changed": "Master password susccessful changed"
+}

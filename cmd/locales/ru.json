@@ -1,0 +1,12 @@
+{
+    "delete_resp_wrong_index": "Неправильный индекс. Введите команду как в примере: <code>/delete 7</code>",
+    "delete_unable_delete": "Не удалось удалить секрет",
+    "delete_secrete_deleted": "Секрет удален",
+    "query_no_secrets": "Секреты не найдены",
+    "setpass_unable_set": "Не удалось установить мастер пароль",
+    "setpass_empty_pass": "Мастер пароль не может быть пустым. Пример правильной комманды: <code>/setpass your_new_master_pass</code>",
+    "setpasspass_setted": "Мастер пароль установлен",
+    "add_resp_command": "Пожалуйста введите описание, пользователя и пароль, разделив их новой строкой:",
+    "checkpass_please_enter_pass": "Пожалуйста введите мастер пароль:",
+    "setpass_pass_changed": "Мастер пароль успешно изменен"
+}
