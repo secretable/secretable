@@ -15,7 +15,7 @@ Secretable is a telegram bot for managing passwords and others secrets stored in
 
 - The bot works only in pull mode, independently requesting data from Telegram servers, so there is no need to open ports, firewall settings, and exclude influence and vulnerabilities from the http server.
 
-**WARNING:** After resetting the master password, the salt changes, which is stored in the environment variable `ST_SALT`, if the OS reboots, then the variable may disappear and the data will not be able to decrypt. Therefore, in cases of salt changes, we recommend saving the initialization of the environment variable in your OS initialization scripts or in the `--salt` flag when starting the bot.
+**WARNING:** After changing the master password, the salt changes, which is stored in your config file.
 
 ## Install
 To install the bot, just download the binary file of the latest release for your OS from the [releases page](https://github.com/secretable/secretable/releases)
@@ -41,27 +41,30 @@ Part of the string `2EKulKXNueAgLzD7UHYiilwJE27gb4N7sj5eoAGlhr34` is the spreads
 Connect to the bot [BotFather](https://t.me/BotFather) and use the `/newbot` command to create a bot and save a token to access it.
 
 ### 4. Run Secretable
-Start the downloaded bot release by specifying flags:<br>
-`./secretable -t <telegram_bot_token> -s <spreadsheet_id> -g <path_to_google_credentials_file>`
+Start the downloaded bot release: `./secretable`
 
 ### 5. Add access
 Add your telegram chat id to the table **Access** in the first column.
 
 ## Usage
-To use, just look at the `--help` command:
+To configure and run, you need to fill in the config file(default: ~/.secretable/config.yaml): 
+```yaml
+telegram_bot_token: "Telegram bot token"
+google_credentials_file: "Path to Google credentials JSON file"
+spreadsheet_id: "Spreadsheet ID"
+cleanup_timeout: 30 # Received and send messages cleanup timeout in seconds
+unencrypted: false # Unencrypted mode
+salt: "Salt" # Salt for encryption with a master password. If not specified, a new one is generated and setted
+```
+
+Help command:
 ```
 Usage:
   secretable [OPTIONS]
 
 Application Options:
-  -t, --tg_bot_token=       Telegram bot token
-  -g, --google_credentials= Path to Google credentials JSON file
-  -s, --spreadsheet_id=     Spreadsheet ID
-  -c, --cleanup_timeout=    Received and send messages cleanup timeout in seconds (default: 30)
-  -u, --unencrypted         Unencrypted mode
-      --salt=               Salt for encryption with a master password. Automatically set to environment variable. If not specified, a new one is
-                            generated and setted. [$ST_SALT]
+  -c, --config= Path to config file
 
 Help Options:
-  -h, --help                Show this help message
+  -h, --help    Show this help message
 ```
