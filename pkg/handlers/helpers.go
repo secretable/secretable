@@ -20,7 +20,6 @@ import (
 	"errors"
 	"fmt"
 	"html"
-	"os"
 	"secretable/pkg/crypto"
 	"secretable/pkg/log"
 	"secretable/pkg/tables"
@@ -60,7 +59,7 @@ func hasAccess(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message) bool {
 	return false
 }
 
-func getPrivkeyAsBytes(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message, masterPass string) ([]byte, bool, error) {
+func getPrivkeyAsBytes(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message, salt, masterPass string) ([]byte, bool, error) {
 	keys := tp.GetKeys()
 	if len(keys) == 0 {
 		return nil, false, nil
@@ -76,7 +75,7 @@ func getPrivkeyAsBytes(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message, mast
 	nonce := key[:12]
 	encprivkey := key[12:]
 
-	decPrivkey, err := crypto.DecryptWithPhrase([]byte(masterPass), []byte(os.Getenv("ST_SALT")), nonce, encprivkey)
+	decPrivkey, err := crypto.DecryptWithPhrase([]byte(masterPass), []byte(salt), nonce, encprivkey)
 	if err != nil {
 		return nil, false, fmt.Errorf("decrypt with phrase: %s", err.Error())
 	}
@@ -84,8 +83,8 @@ func getPrivkeyAsBytes(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message, mast
 	return decPrivkey, true, nil
 }
 
-func getPrivkey(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message, masterPass string) (*ecdsa.PrivateKey, error) {
-	decPrivkey, ok, err := getPrivkeyAsBytes(b, tp, m, masterPass)
+func getPrivkey(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message, salt, masterPass string) (*ecdsa.PrivateKey, error) {
+	decPrivkey, ok, err := getPrivkeyAsBytes(b, tp, m, salt, masterPass)
 	if err != nil {
 		return nil, err
 	}

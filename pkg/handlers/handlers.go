@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"html"
 	"math/rand"
-	"os"
+	"secretable/pkg/config"
 	"secretable/pkg/crypto"
 	"secretable/pkg/localizator"
 	"secretable/pkg/log"
@@ -50,12 +50,14 @@ type Handler struct {
 	b            *tb.Bot
 	tp           *tables.TablesProvider
 	locales      *localizator.Localizator
+	conf         *config.Config
+	confPath     string
 }
 
-func NewHandler(b *tb.Bot, tp *tables.TablesProvider, locales *localizator.Localizator, cleanupTime int, enc bool) *Handler {
+func NewHandler(b *tb.Bot, tp *tables.TablesProvider, locales *localizator.Localizator, conf *config.Config, confPath string, enc bool) *Handler {
 	return &Handler{
-		b: b, tp: tp, locales: locales,
-		cleanupTime: cleanupTime, encMode: enc,
+		b: b, tp: tp, locales: locales, encMode: enc,
+		conf: conf, confPath: confPath,
 	}
 }
 
@@ -136,7 +138,7 @@ func (h *Handler) query(m *tb.Message) {
 }
 
 func (h *Handler) queryEncrypted(m *tb.Message) {
-	privkey, err := getPrivkey(h.b, h.tp, m, h.mastePass)
+	privkey, err := getPrivkey(h.b, h.tp, m, h.conf.Salt, h.mastePass)
 	if err != nil {
 		return
 	}
@@ -196,17 +198,25 @@ func (h *Handler) ResetPass(m *tb.Message) {
 		return
 	}
 
-	privkeyBytes, ok, err := getPrivkeyAsBytes(h.b, h.tp, m, h.mastePass)
+	privkeyBytes, ok, err := getPrivkeyAsBytes(h.b, h.tp, m, h.conf.Salt, h.mastePass)
 	if err != nil || !ok {
 		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 		return
 	}
 
 	b, _ := crypto.MakeRandom(16)
-	os.Setenv("ST_SALT", base58.Encode(b))
+	oldSalt := h.conf.Salt
+	h.conf.Salt = base58.Encode(b)
+	err = config.UpdateFile(h.confPath, h.conf)
+	if err != nil {
+		h.conf.Salt = oldSalt
+		log.Error("Update config: " + err.Error())
+		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
+		return
+	}
 
 	nonce, _ := crypto.MakeRandom(crypto.NonceSize)
-	cypher, err := crypto.EncryptWithPhrase([]byte(data), []byte(os.Getenv("ST_SALT")), nonce, privkeyBytes)
+	cypher, err := crypto.EncryptWithPhrase([]byte(data), []byte(h.conf.Salt), nonce, privkeyBytes)
 	if err != nil {
 		log.Error("Encrypt with password: " + err.Error())
 		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))

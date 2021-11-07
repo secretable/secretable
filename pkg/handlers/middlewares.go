@@ -16,7 +16,6 @@ package handlers
 
 import (
 	"crypto/x509"
-	"os"
 	"secretable/pkg/crypto"
 	"secretable/pkg/log"
 	"secretable/pkg/tables"
@@ -73,7 +72,7 @@ func (h *Handler) setPass(m *tb.Message) {
 
 	newMasterPass := strings.TrimSpace(m.Text)
 
-	_, ok, err := getPrivkeyAsBytes(h.b, h.tp, m, newMasterPass)
+	_, ok, err := getPrivkeyAsBytes(h.b, h.tp, m, h.conf.Salt, newMasterPass)
 	if err != nil {
 		log.Error("Get private key: " + err.Error())
 		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
@@ -85,7 +84,7 @@ func (h *Handler) setPass(m *tb.Message) {
 		privkey, _ := crypto.GeneratePrivKey()
 		binPrivkey, _ := x509.MarshalPKCS8PrivateKey(privkey)
 		nonce, _ := crypto.MakeRandom(crypto.NonceSize)
-		cypher, err := crypto.EncryptWithPhrase([]byte(newMasterPass), []byte(os.Getenv("ST_SALT")), nonce, binPrivkey)
+		cypher, err := crypto.EncryptWithPhrase([]byte(newMasterPass), []byte(h.conf.Salt), nonce, binPrivkey)
 		if err != nil {
 			log.Error("Encrypt with phrase: " + err.Error())
 			sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
@@ -159,7 +158,7 @@ func (h *Handler) querySetNewEncryptedSecret(b *tb.Bot, tp *tables.TablesProvide
 	}
 	arr = arr[:3]
 
-	privkey, err := getPrivkey(b, tp, m, masterPass)
+	privkey, err := getPrivkey(b, tp, m, h.conf.Salt, masterPass)
 	if err != nil {
 		return
 	}

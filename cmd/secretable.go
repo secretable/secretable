@@ -18,9 +18,11 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"secretable/pkg/config"
 	"secretable/pkg/crypto"
 	"secretable/pkg/handlers"
 	"secretable/pkg/localizator"
@@ -38,12 +40,7 @@ const (
 )
 
 var opts struct {
-	TGToken           string `short:"t" long:"tg_bot_token" description:"Telegram bot token" required:"true"`
-	GoogleCredentials string `short:"g" long:"google_credentials" description:"Path to Google credentials JSON file" required:"true"`
-	SpreadsheetID     string `short:"s" long:"spreadsheet_id" description:"Spreadsheet ID" required:"true"`
-	CleanupTime       int    `short:"c" long:"cleanup_timeout" default:"30" description:"Received and send messages cleanup timeout in seconds"`
-	Unencrypted       bool   `short:"u" long:"unencrypted" description:"Unencrypted mode"`
-	Salt              string `long:"salt" env:"ST_SALT" description:"Salt for encryption with a master password. Automatically set to environment variable. If not specified, a new one is generated and setted."`
+	ConfigFile string `short:"c" default:"" long:"config" description:"Path to config file" required:"false"`
 }
 
 var cmds = []tb.Command{
@@ -77,17 +74,32 @@ func main() {
 		return
 	}
 
-	log.Info("⏳ Initialization Secretable")
+	if opts.ConfigFile == "" {
+		homedir, err := os.UserHomeDir()
+		if err != nil {
+			log.Fatal(err.Error())
+			return
+		}
+		opts.ConfigFile = filepath.Join(homedir, ".secretable", "config.yaml")
+	}
 
-	log.Info("📝 Google credentials: " + opts.GoogleCredentials)
-	log.Info("📄 Spreadsheet ID: " + opts.SpreadsheetID)
-	log.Info("🧹 Cleanup timeout: " + fmt.Sprint(opts.CleanupTime, " sec"))
-	if opts.Unencrypted {
+	conf, err := config.ParseFromFile(opts.ConfigFile)
+	if err != nil {
+		log.Fatal(err.Error())
+		return
+	}
+
+	log.Info("⏳ Initialization Secretable")
+	log.Info("📝 Google credentials: " + conf.GoogleCredentials)
+	log.Info("📄 Spreadsheet ID: " + conf.SpreadsheetID)
+	log.Info("🧹 Cleanup timeout: " + fmt.Sprint(conf.CleanupTimeout, " sec"))
+
+	if conf.Unencrypted {
 		log.Info("🔓 Unecrypted mode")
 	} else {
 		log.Info("🔐 Encrypted mode")
 
-		if opts.Salt == "" {
+		if conf.Salt == "" {
 			log.Info("🧂 Salt not set and will be generated automatically.")
 		} else {
 			log.Info("🧂 Salt setted")
@@ -101,22 +113,20 @@ func main() {
 
 	log.Info("🌎 Supported locales: " + strings.Join(locales.GetLocales(), ", "))
 
-	tableProvider, err := tables.NewTablesProvider(opts.GoogleCredentials, opts.SpreadsheetID)
+	tableProvider, err := tables.NewTablesProvider(conf.GoogleCredentials, conf.SpreadsheetID)
 	if err != nil {
 		log.Fatal("Unable to create tables provider: " + err.Error())
 	}
 
-	if !opts.Unencrypted {
-		if opts.Salt == "" {
+	if !conf.Unencrypted {
+		if conf.Salt == "" {
 			s, _ := crypto.MakeRandom(32)
-			opts.Salt = base58.Encode(s)
-			os.Setenv("ST_SALT", opts.Salt)
+			conf.Salt = base58.Encode(s)
 		}
-
 	}
 
 	b, err := tb.NewBot(tb.Settings{
-		Token:  opts.TGToken,
+		Token:  conf.TelegramBotToken,
 		Poller: &tb.LongPoller{Timeout: longPollerTimeout * time.Second},
 	})
 
@@ -124,7 +134,7 @@ func main() {
 		log.Fatal("Unable to create new bot instance: " + err.Error())
 	}
 
-	handler := handlers.NewHandler(b, tableProvider, locales, opts.CleanupTime, !opts.Unencrypted)
+	handler := handlers.NewHandler(b, tableProvider, locales, conf, opts.ConfigFile, !conf.Unencrypted)
 
 	startMessage := "Welcome! Just enter text into the chat to find secrets or use the commands:\n\n"
 	for _, cmd := range cmds {
@@ -133,13 +143,13 @@ func main() {
 
 	b.Handle("/start", middleware(false, false, false, 0, handler, handler.MakeStart(startMessage)))
 
-	b.Handle("/id", middleware(false, false, false, opts.CleanupTime, handler, handler.ID))
-	b.Handle("/generate", middleware(false, false, false, opts.CleanupTime, handler, handler.Generate))
+	b.Handle("/id", middleware(false, false, false, conf.CleanupTimeout, handler, handler.ID))
+	b.Handle("/generate", middleware(false, false, false, conf.CleanupTimeout, handler, handler.Generate))
 
-	b.Handle("/add", middleware(true, false, true, opts.CleanupTime, handler, handler.Set))
-	b.Handle("/setpass", middleware(true, false, true, opts.CleanupTime, handler, handler.ResetPass))
-	b.Handle("/delete", middleware(true, false, true, opts.CleanupTime, handler, handler.Delete))
-	b.Handle(tb.OnText, middleware(true, true, true, opts.CleanupTime, handler, handler.Query))
+	b.Handle("/add", middleware(true, false, true, conf.CleanupTimeout, handler, handler.Set))
+	b.Handle("/setpass", middleware(true, false, true, conf.CleanupTimeout, handler, handler.ResetPass))
+	b.Handle("/delete", middleware(true, false, true, conf.CleanupTimeout, handler, handler.Delete))
+	b.Handle(tb.OnText, middleware(true, true, true, conf.CleanupTimeout, handler, handler.Query))
 
 	if err = b.SetCommands(cmds); err != nil {
 		log.Error("Error of setting commands: " + err.Error())

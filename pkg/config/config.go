@@ -19,6 +19,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"path/filepath"
 	"secretable/pkg/log"
 
 	"gopkg.in/yaml.v3"
@@ -38,6 +39,9 @@ func ParseFromFile(path string) (config *Config, err error) {
 	file, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
+			if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+				return nil, err
+			}
 			if file, err = os.Create(path); err != nil {
 				return nil, err
 			}
