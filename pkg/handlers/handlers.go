@@ -33,6 +33,10 @@ import (
 )
 
 const (
+	numbQueryColumns               = 3
+	numbSearchedUnencryptedColumns = 2
+	numbSearchedEncryptedColumns   = 1
+
 	genchars = "abcdefghijklmnopqrstuvwxyz" +
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
 		"0123456789" +
@@ -40,46 +44,37 @@ const (
 )
 
 type Handler struct {
-	encMode bool
+	EncriptionMode bool
+	Bot            *tb.Bot
+	TablesProvider *tables.TablesProvider
+	Locales        *localizator.Localizator
+	Config         *config.Config
 
 	mastePass string
+	setstates sync.Map
 
-	cleanupTime  int
-	setstates    sync.Map
 	waitmpstates sync.Map
-	b            *tb.Bot
-	tp           *tables.TablesProvider
-	locales      *localizator.Localizator
-	conf         *config.Config
-	confPath     string
-}
-
-func NewHandler(b *tb.Bot, tp *tables.TablesProvider, locales *localizator.Localizator, conf *config.Config, confPath string, enc bool) *Handler {
-	return &Handler{
-		b: b, tp: tp, locales: locales, encMode: enc,
-		conf: conf, confPath: confPath,
-	}
 }
 
 func (h *Handler) Delete(m *tb.Message) {
 	index, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(m.Text, "/delete")))
 	if err != nil {
-		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "delete_resp_wrong_index"))
+		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "delete_resp_wrong_index"))
 		return
 	}
 
-	if h.encMode {
-		err = h.tp.DeletEncrypted(index - 1)
+	if h.EncriptionMode {
+		err = h.TablesProvider.DeletEncrypted(index - 1)
 	} else {
-		err = h.tp.DeletSecrets(index - 1)
+		err = h.TablesProvider.DeletSecrets(index - 1)
 	}
 
 	if err != nil {
-		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "delete_unable_delete"))
+		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "delete_unable_delete"))
 		return
 	}
 
-	sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "delete_secret_deleted"))
+	h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "delete_secret_deleted"))
 
 }
 
@@ -98,15 +93,15 @@ func (h *Handler) Generate(m *tb.Message) {
 	for i := 0; i < lengthInt; i++ {
 		bld.WriteRune(chars[rand.Intn(len(chars))])
 	}
-	sendMessage(m, h.b, fmt.Sprintf("<code>%v</code>", html.EscapeString(bld.String())))
+	h.sendMessage(m, fmt.Sprintf("<code>%v</code>", html.EscapeString(bld.String())))
 }
 
 func (h *Handler) ID(m *tb.Message) {
-	sendMessage(m, h.b, fmt.Sprintf("<code>%v</code>", m.Chat.ID))
+	h.sendMessage(m, fmt.Sprintf("<code>%v</code>", m.Chat.ID))
 }
 
 func (h *Handler) Query(m *tb.Message) {
-	if h.encMode {
+	if h.EncriptionMode {
 		h.queryEncrypted(m)
 	} else {
 		h.query(m)
@@ -114,42 +109,42 @@ func (h *Handler) Query(m *tb.Message) {
 }
 
 func (h *Handler) query(m *tb.Message) {
-	rows := h.tp.GetSecrets()
+	rows := h.TablesProvider.GetSecrets()
 	q := strings.ToLower(m.Text)
 
 	ok := false
 	for i, row := range rows {
-		if len(row) != 3 {
+		if len(row) != numbQueryColumns {
 			continue
 		}
 
 		for _, v := range row[:2] {
 			if strings.Contains(strings.ToLower(v), q) {
 				ok = true
-				sendMessage(m, h.b, makeQueryResponse(i, row))
+				h.sendMessage(m, makeQueryResponse(i, row))
 				break
 			}
 		}
 	}
 
 	if !ok {
-		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "query_no_secrets"))
+		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "query_no_secrets"))
 	}
 }
 
 func (h *Handler) queryEncrypted(m *tb.Message) {
-	privkey, err := getPrivkey(h.b, h.tp, m, h.conf.Salt, h.mastePass)
+	privkey, err := getPrivkey(h.Bot, h.TablesProvider, m, h.Config.Salt, h.mastePass)
 	if err != nil {
 		return
 	}
 
-	rows := h.tp.GetEncrypted()
+	rows := h.TablesProvider.GetEncrypted()
 
 	q := strings.ToLower(m.Text)
 
 	ok := false
 	for i, row := range rows {
-		if len(row) != 3 {
+		if len(row) != numbQueryColumns {
 			continue
 		}
 
@@ -161,12 +156,14 @@ func (h *Handler) queryEncrypted(m *tb.Message) {
 				decUsername, err := crypto.DecryptWithPriv(privkey, username)
 				if err != nil {
 					log.Error("Decrypt username with private key: " + err.Error())
+
 					break
 				}
 
 				decPassword, err := crypto.DecryptWithPriv(privkey, password)
 				if err != nil {
 					log.Error("Decrypt password with private key: " + err.Error())
+
 					break
 				}
 
@@ -174,7 +171,7 @@ func (h *Handler) queryEncrypted(m *tb.Message) {
 				row[2] = string(decPassword)
 
 				ok = true
-				sendMessage(m, h.b, makeQueryResponse(i+1, row))
+				h.sendMessage(m, makeQueryResponse(i+1, row))
 				break
 			}
 		}
@@ -182,66 +179,66 @@ func (h *Handler) queryEncrypted(m *tb.Message) {
 	}
 
 	if !ok {
-		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "query_no_secrets"))
+		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "query_no_secrets"))
 	}
 }
 
 func (h *Handler) ResetPass(m *tb.Message) {
-	if !h.encMode {
+	if !h.EncriptionMode {
 		return
 	}
 
 	data := strings.TrimSpace(strings.TrimPrefix(m.Text, "/setpass"))
 
 	if data == "" {
-		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_empty_pass"))
+		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_empty_pass"))
 		return
 	}
 
-	privkeyBytes, ok, err := getPrivkeyAsBytes(h.b, h.tp, m, h.conf.Salt, h.mastePass)
+	privkeyBytes, ok, err := getPrivkeyAsBytes(h.Bot, h.TablesProvider, m, h.Config.Salt, h.mastePass)
 	if err != nil || !ok {
-		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
+		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 		return
 	}
 
 	b, _ := crypto.MakeRandom(16)
-	oldSalt := h.conf.Salt
-	h.conf.Salt = base58.Encode(b)
-	err = config.UpdateFile(h.confPath, h.conf)
+	oldSalt := h.Config.Salt
+	h.Config.Salt = base58.Encode(b)
+	err = config.UpdateFile(h.Config)
 	if err != nil {
-		h.conf.Salt = oldSalt
+		h.Config.Salt = oldSalt
 		log.Error("Update config: " + err.Error())
-		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
+		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 		return
 	}
 
 	nonce, _ := crypto.MakeRandom(crypto.NonceSize)
-	cypher, err := crypto.EncryptWithPhrase([]byte(data), []byte(h.conf.Salt), nonce, privkeyBytes)
+	cypher, err := crypto.EncryptWithPhrase([]byte(data), []byte(h.Config.Salt), nonce, privkeyBytes)
 	if err != nil {
 		log.Error("Encrypt with password: " + err.Error())
-		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
+		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 		return
 	}
 
 	cypher = append(nonce, cypher...)
 
-	if err = h.tp.SetKey(base58.Encode(cypher)); err != nil {
+	if err = h.TablesProvider.SetKey(base58.Encode(cypher)); err != nil {
 		log.Error("Store encrypted key to table: " + err.Error())
-		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
+		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 		return
 	}
 
 	h.mastePass = data
-	sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpasspass_setted"))
+	h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpasspass_setted"))
 }
 
 func (h *Handler) Set(m *tb.Message) {
-	sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "add_resp_command"))
+	h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "add_resp_command"))
 	h.setstates.Store(m.Chat.ID, true)
 }
 
 func (h *Handler) MakeStart(infoMsg string) func(m *tb.Message) {
 	return func(m *tb.Message) {
-		sendMessageWithoutCleanup(m, h.b, infoMsg)
+		h.sendMessageWithoutCleanup(m, infoMsg)
 	}
 }

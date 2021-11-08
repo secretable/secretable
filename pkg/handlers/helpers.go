@@ -29,25 +29,25 @@ import (
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
-func sendMessage(m *tb.Message, b *tb.Bot, msg string) {
-	resp, err := b.Send(m.Chat, msg, tb.Silent, tb.ModeHTML)
+func (h *Handler) sendMessage(m *tb.Message, msg string) {
+	resp, err := h.Bot.Send(m.Chat, msg, tb.Silent, tb.ModeHTML)
 	if err != nil {
 		log.Error("Unable to send a message to telegram: "+err.Error(), "chat_id", m.Chat.ID, "message", msg)
 		return
 	}
 
-	go cleanupMessage(b, resp, 10)
+	go cleanupMessage(h.Bot, resp, h.Config.CleanupTimeout)
 }
 
-func sendMessageWithoutCleanup(m *tb.Message, b *tb.Bot, msg string) {
-	_, err := b.Send(m.Chat, msg, tb.Silent, tb.ModeHTML)
+func (h *Handler) sendMessageWithoutCleanup(m *tb.Message, msg string) {
+	_, err := h.Bot.Send(m.Chat, msg, tb.Silent, tb.ModeHTML)
 	if err != nil {
 		log.Error("Unable to send a message to telegram"+err.Error(), "chat_id", m.Chat.ID, "message", msg)
 		return
 	}
 }
 
-func hasAccess(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message) bool {
+func (h *Handler) hasAccess(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message) bool {
 	id := fmt.Sprint(m.Chat.ID)
 	for _, a := range tp.GetAccess() {
 		if a == id {
@@ -55,7 +55,7 @@ func hasAccess(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message) bool {
 		}
 	}
 
-	sendMessage(m, b, "Access forbidden")
+	h.sendMessage(m, "Access forbidden")
 	return false
 }
 

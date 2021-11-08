@@ -22,6 +22,7 @@ import (
 	"crypto/rand"
 	"crypto/sha512"
 
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/pbkdf2"
 )
 
@@ -49,7 +50,12 @@ func DecryptWithPhrase(phrase, salt, nonce []byte, ciphertext []byte) ([]byte, e
 		return nil, err
 	}
 
-	return gcm.Open(nil, nonce, ciphertext, nil)
+	b, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "gcm open")
+	}
+
+	return b, nil
 }
 
 func SHA512(s string) []byte {
@@ -60,11 +66,10 @@ func SHA512(s string) []byte {
 func GeneratePrivKey() (priv *ecdsa.PrivateKey, err error) {
 	priv, err = ecdsa.GenerateKey(curve(), rand.Reader)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "ecdsa generate key")
 	}
 
-	return priv, err
-
+	return priv, nil
 }
 
 func DeriveCipher(password, keySalt []byte) (cipher.AEAD, error) {
@@ -72,7 +77,7 @@ func DeriveCipher(password, keySalt []byte) (cipher.AEAD, error) {
 		pbkdf2.Key(password, keySalt, 200000, AESKeySize, hashNew),
 	)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "aes new cipher")
 	}
 	return cipher.NewGCM(block)
 }

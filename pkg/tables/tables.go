@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/errors"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 )
@@ -58,7 +59,7 @@ type TablesProvider struct {
 func NewTablesProvider(googleCredsFile, spreadsheetId string) (*TablesProvider, error) {
 	service, err := sheets.NewService(context.Background(), option.WithCredentialsFile(googleCredsFile))
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "init sheets service")
 	}
 
 	tp := new(TablesProvider)
@@ -102,7 +103,7 @@ func createTable(service *sheets.Service, spreadsheetId, tableTitle string) (err
 	}).Do()
 
 	if err != nil && !strings.Contains(err.Error(), "already exists") {
-		return err
+		return errors.Wrap(err, "add sheet")
 	}
 
 	return nil
@@ -131,9 +132,10 @@ func (t *TablesProvider) append(sheetRange string, arr []string) error {
 	}).ValueInputOption("RAW").InsertDataOption("INSERT_ROWS").Do()
 	if err != nil {
 		log.Error("Unable to append new values to table: "+err.Error(), "spreadsheet_id", t.spreadsheetId, "sheet_range", sheetRange)
+		return errors.Wrap(err, "append secrets to table")
 	}
 
-	return err
+	return nil
 }
 
 func (t *TablesProvider) SetKey(key string) error {
@@ -147,9 +149,10 @@ func (t *TablesProvider) SetKey(key string) error {
 	}).ValueInputOption("RAW").Do()
 	if err != nil {
 		log.Error("Unable to append new values to table: "+err.Error(), "spreadsheet_id", t.spreadsheetId, "sheet_range", keysRange)
+		return errors.Wrap(err, "append key to table")
 	}
 
-	return err
+	return nil
 }
 
 func (t *TablesProvider) DeletSecrets(index int) error {
@@ -177,12 +180,13 @@ func (t *TablesProvider) delete(sheetID int64, index int) error {
 	}).Do()
 	if err != nil {
 		log.Error("Unable to delete values to table: "+err.Error(), "spreadsheet_id", t.spreadsheetId, "index", index)
+		return errors.Wrap(err, "delete from table")
 	}
 
-	return err
+	return nil
 }
 
-func (t *TablesProvider) updateSecrets(data []*sheets.GridData) error {
+func (t *TablesProvider) updateSecrets(data []*sheets.GridData) {
 	var newrows [][]string
 
 	for _, item := range data {
@@ -198,10 +202,10 @@ func (t *TablesProvider) updateSecrets(data []*sheets.GridData) error {
 	}
 
 	t.setSecrets(newrows)
-	return nil
+	return
 }
 
-func (t *TablesProvider) updateEncrypted(data []*sheets.GridData) error {
+func (t *TablesProvider) updateEncrypted(data []*sheets.GridData) {
 	var newrows [][]string
 
 	for _, item := range data {
@@ -216,10 +220,10 @@ func (t *TablesProvider) updateEncrypted(data []*sheets.GridData) error {
 
 	t.setEncrypted(newrows)
 
-	return nil
+	return
 }
 
-func (t *TablesProvider) updateAccess(data []*sheets.GridData) error {
+func (t *TablesProvider) updateAccess(data []*sheets.GridData) {
 	var newrows []string
 
 	for _, item := range data {
@@ -232,10 +236,10 @@ func (t *TablesProvider) updateAccess(data []*sheets.GridData) error {
 	}
 	t.setAccess(newrows)
 
-	return nil
+	return
 }
 
-func (t *TablesProvider) updateKeys(data []*sheets.GridData) error {
+func (t *TablesProvider) updateKeys(data []*sheets.GridData) {
 	var newrows []string
 
 	for _, item := range data {
@@ -249,33 +253,29 @@ func (t *TablesProvider) updateKeys(data []*sheets.GridData) error {
 
 	t.setKeys(newrows)
 
-	return nil
+	return
 }
 
 func (t *TablesProvider) update() error {
 	ss, err := t.service.Spreadsheets.Get(t.spreadsheetId).IncludeGridData(true).Do()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "get spreadsheet")
 	}
 
 	for _, sheet := range ss.Sheets {
 		switch sheet.Properties.Title {
 		case secretsTitle:
 			t.secretsID = sheet.Properties.SheetId
-			err = t.updateSecrets(sheet.Data)
+			t.updateSecrets(sheet.Data)
 		case encryptedTitle:
 			t.encryptedID = sheet.Properties.SheetId
-			err = t.updateEncrypted(sheet.Data)
+			t.updateEncrypted(sheet.Data)
 		case accessTitle:
 			t.accessID = sheet.Properties.SheetId
-			err = t.updateAccess(sheet.Data)
+			t.updateAccess(sheet.Data)
 		case keysTitle:
 			t.keysID = sheet.Properties.SheetId
-			err = t.updateKeys(sheet.Data)
-		}
-
-		if err != nil {
-			return err
+			t.updateKeys(sheet.Data)
 		}
 	}
 	return nil

@@ -25,16 +25,20 @@ import (
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
+const (
+	numbAppendSecretsLines = 3
+)
+
 func (h *Handler) CleanupMessagesMiddleware(cleanupTime int, next func(m *tb.Message)) func(m *tb.Message) {
 	return func(m *tb.Message) {
-		go cleanupMessage(h.b, m, cleanupTime)
+		go cleanupMessage(h.Bot, m, cleanupTime)
 		next(m)
 	}
 }
 
 func (h *Handler) AccessMiddleware(next func(m *tb.Message)) func(m *tb.Message) {
 	return func(m *tb.Message) {
-		if !hasAccess(h.b, h.tp, m) {
+		if !h.hasAccess(h.Bot, h.TablesProvider, m) {
 			return
 		}
 		next(m)
@@ -43,7 +47,7 @@ func (h *Handler) AccessMiddleware(next func(m *tb.Message)) func(m *tb.Message)
 
 func (h *Handler) ControlMasterPassMiddleware(use bool, isSetHandler bool, next func(m *tb.Message)) func(m *tb.Message) {
 	return func(m *tb.Message) {
-		if !h.encMode || h.mastePass != "" {
+		if !h.EncriptionMode || h.mastePass != "" {
 			next(m)
 			return
 		}
@@ -57,7 +61,7 @@ func (h *Handler) ControlMasterPassMiddleware(use bool, isSetHandler bool, next 
 
 		if !isSetHandler || isSetHandler && !ok {
 			h.waitmpstates.Store(m.Chat.ID, true)
-			sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "checkpass_please_enter_pass"))
+			h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "checkpass_please_enter_pass"))
 			return
 		}
 
@@ -66,16 +70,16 @@ func (h *Handler) ControlMasterPassMiddleware(use bool, isSetHandler bool, next 
 }
 
 func (h *Handler) setPass(m *tb.Message) {
-	if !hasAccess(h.b, h.tp, m) {
+	if !h.hasAccess(h.Bot, h.TablesProvider, m) {
 		return
 	}
 
 	newMasterPass := strings.TrimSpace(m.Text)
 
-	_, ok, err := getPrivkeyAsBytes(h.b, h.tp, m, h.conf.Salt, newMasterPass)
+	_, ok, err := getPrivkeyAsBytes(h.Bot, h.TablesProvider, m, h.Config.Salt, newMasterPass)
 	if err != nil {
 		log.Error("Get private key: " + err.Error())
-		sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
+		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 		return
 	}
 
@@ -84,26 +88,26 @@ func (h *Handler) setPass(m *tb.Message) {
 		privkey, _ := crypto.GeneratePrivKey()
 		binPrivkey, _ := x509.MarshalPKCS8PrivateKey(privkey)
 		nonce, _ := crypto.MakeRandom(crypto.NonceSize)
-		cypher, err := crypto.EncryptWithPhrase([]byte(newMasterPass), []byte(h.conf.Salt), nonce, binPrivkey)
+		cypher, err := crypto.EncryptWithPhrase([]byte(newMasterPass), []byte(h.Config.Salt), nonce, binPrivkey)
 		if err != nil {
 			log.Error("Encrypt with phrase: " + err.Error())
-			sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
+			h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 			return
 		}
 
 		cypher = append(nonce, cypher...)
 
-		err = h.tp.SetKey(base58.Encode(cypher))
+		err = h.TablesProvider.SetKey(base58.Encode(cypher))
 		if err != nil {
 			log.Error("Store to table: " + err.Error())
-			sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
+			h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
 			return
 		}
 	}
 
 	h.mastePass = newMasterPass
 
-	sendMessage(m, h.b, h.locales.Get(m.Sender.LanguageCode, "setpass_pass_changed"))
+	h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_pass_changed"))
 }
 
 func (h *Handler) ControlSetSecretMiddleware(isSetHandler bool, next func(m *tb.Message)) func(m *tb.Message) {
@@ -112,10 +116,10 @@ func (h *Handler) ControlSetSecretMiddleware(isSetHandler bool, next func(m *tb.
 		h.setstates.Delete(m.Chat.ID)
 
 		if isSetHandler && ok {
-			if h.encMode {
-				h.querySetNewEncryptedSecret(h.b, h.tp, m, h.mastePass)
+			if h.EncriptionMode {
+				h.querySetNewEncryptedSecret(h.Bot, h.TablesProvider, m, h.mastePass)
 			} else {
-				h.querySetNewSecret(h.b, h.tp, m)
+				h.querySetNewSecret(h.Bot, h.TablesProvider, m)
 			}
 			return
 		}
@@ -133,32 +137,30 @@ func (h *Handler) LoggerMiddleware(next func(m *tb.Message)) func(m *tb.Message)
 func (h *Handler) querySetNewSecret(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message) {
 	arr := strings.Split(m.Text, "\n")
 
-	if len(arr) < 3 {
-		sendMessage(m, b, "Need 3 lines:\nDescription\nUser\nSecret\n\nTry repeat /set")
+	if len(arr) < numbAppendSecretsLines {
+		h.sendMessage(m, "Need 3 lines:\nDescription\nUser\nSecret\n\nTry repeat /set")
 		return
 	}
-	arr = arr[:3]
+	arr = arr[:numbAppendSecretsLines]
 
-	err := tp.AppendSecrets(arr)
-
-	if err != nil {
-		sendMessage(m, b, "Error of appending new encrypted")
+	if err := tp.AppendSecrets(arr); err != nil {
+		h.sendMessage(m, "Error of appending new encrypted")
 		return
 	}
 
-	sendMessage(m, b, "New secret appened")
+	h.sendMessage(m, "New secret appened")
 }
 
 func (h *Handler) querySetNewEncryptedSecret(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message, masterPass string) {
 	arr := strings.Split(m.Text, "\n")
 
-	if len(arr) < 3 {
-		sendMessage(m, b, "Need 3 lines:\nDescription\nUser\nSecret\n\nTry repeat /set")
+	if len(arr) < numbQueryColumns {
+		h.sendMessage(m, "Need 3 lines:\nDescription\nUser\nSecret\n\nTry repeat /set")
 		return
 	}
-	arr = arr[:3]
+	arr = arr[:numbQueryColumns]
 
-	privkey, err := getPrivkey(b, tp, m, h.conf.Salt, masterPass)
+	privkey, err := getPrivkey(b, tp, m, h.Config.Salt, masterPass)
 	if err != nil {
 		return
 	}
@@ -172,9 +174,9 @@ func (h *Handler) querySetNewEncryptedSecret(b *tb.Bot, tp *tables.TablesProvide
 	err = tp.AppendEncrypted(arr)
 
 	if err != nil {
-		sendMessage(m, b, "Error of appending new encrypted")
+		h.sendMessage(m, "Error of appending new encrypted")
 		return
 	}
 
-	sendMessage(m, b, "New secret appened")
+	h.sendMessage(m, "New secret appened")
 }

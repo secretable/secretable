@@ -26,6 +26,7 @@ import (
 )
 
 type Config struct {
+	filePath          string
 	TelegramBotToken  string `yaml:"telegram_bot_token"`
 	GoogleCredentials string `yaml:"google_credentials_file"`
 	SpreadsheetID     string `yaml:"spreadsheet_id"`
@@ -57,13 +58,14 @@ func ParseFromFile(path string) (config *Config, err error) {
 		return nil, err
 	}
 
+	config.filePath = path
 	return config, nil
 }
 
-func UpdateFile(path string, config *Config) error {
+func UpdateFile(config *Config) error {
 	buf := bytes.NewBuffer([]byte{})
 	if err := yaml.NewEncoder(buf).Encode(config); err != nil {
 		return nil
 	}
-	return os.WriteFile(path, buf.Bytes(), os.ModePerm)
+	return os.WriteFile(config.filePath, buf.Bytes(), os.ModePerm)
 }

@@ -21,11 +21,15 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+const (
+	skipFrameCount = 4
+)
+
 func init() {
 	cw := zerolog.NewConsoleWriter()
 	cw.Out = os.Stderr
 	cw.TimeFormat = "02 Jan 06 15:04:05 MST"
-	log.Logger = log.Output(cw).With().Caller().CallerWithSkipFrameCount(4).Logger()
+	log.Logger = log.Output(cw).With().Caller().CallerWithSkipFrameCount(skipFrameCount).Logger()
 }
 
 func Debug(msg string, pairs ...interface{}) {
@@ -49,10 +53,15 @@ func Fatal(msg string, pairs ...interface{}) {
 }
 
 func printLog(e *zerolog.Event, msg string, pairs ...interface{}) {
-	k := ""
+	var (
+		k string
+	)
 	for i, kv := range pairs {
 		if i%2 == 0 {
-			k = kv.(string)
+			v, ok := kv.(string)
+			if ok {
+				k = v
+			}
 		} else {
 			e.Interface(k, kv)
 		}
