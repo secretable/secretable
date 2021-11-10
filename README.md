@@ -29,7 +29,7 @@ Connect to the bot [BotFather](https://t.me/BotFather) and use the `/newbot` com
 Start the downloaded bot release: `./secretable`
 
 ### 5. Add access
-Add your telegram chat id to the table **Access** in the first column.
+Add your telegram chat id to the **allowed_list** section of config.
 
 ## Usage
 To configure and run, you need to fill in the config file(default: ~/.secretable/config.yaml): 

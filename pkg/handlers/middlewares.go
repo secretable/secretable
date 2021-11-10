@@ -38,7 +38,7 @@ func (h *Handler) CleanupMessagesMiddleware(cleanupTime int, next func(m *tb.Mes
 
 func (h *Handler) AccessMiddleware(next func(m *tb.Message)) func(m *tb.Message) {
 	return func(m *tb.Message) {
-		if !h.hasAccess(h.Bot, h.TablesProvider, m) {
+		if !h.hasAccess(m) {
 			return
 		}
 		next(m)
@@ -70,7 +70,7 @@ func (h *Handler) ControlMasterPassMiddleware(use bool, isSetHandler bool, next 
 }
 
 func (h *Handler) setPass(m *tb.Message) {
-	if !h.hasAccess(h.Bot, h.TablesProvider, m) {
+	if !h.hasAccess(m) {
 		return
 	}
 

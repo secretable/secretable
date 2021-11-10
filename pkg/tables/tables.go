@@ -33,7 +33,6 @@ const (
 
 	secretsTitle   = "Secrets"
 	encryptedTitle = "Encrypted"
-	accessTitle    = "Access"
 	keysTitle      = "Keys"
 
 	updateTimeout = 10 // in sec
@@ -45,12 +44,10 @@ type TablesProvider struct {
 
 	secretsID   int64
 	encryptedID int64
-	accessID    int64
 	keysID      int64
 
 	secrets   [][]string
 	encrypted [][]string
-	access    []string
 	keys      []string
 
 	mx sync.RWMutex
@@ -66,7 +63,7 @@ func NewTablesProvider(googleCredsFile, spreadsheetId string) (*TablesProvider, 
 	tp.service = service
 	tp.spreadsheetId = spreadsheetId
 
-	for _, tab := range []string{secretsTitle, encryptedTitle, accessTitle, keysTitle} {
+	for _, tab := range []string{secretsTitle, encryptedTitle, keysTitle} {
 		err = createTable(service, spreadsheetId, tab)
 		if err != nil {
 			return nil, err
@@ -202,7 +199,6 @@ func (t *TablesProvider) updateSecrets(data []*sheets.GridData) {
 	}
 
 	t.setSecrets(newrows)
-	return
 }
 
 func (t *TablesProvider) updateEncrypted(data []*sheets.GridData) {
@@ -219,24 +215,6 @@ func (t *TablesProvider) updateEncrypted(data []*sheets.GridData) {
 	}
 
 	t.setEncrypted(newrows)
-
-	return
-}
-
-func (t *TablesProvider) updateAccess(data []*sheets.GridData) {
-	var newrows []string
-
-	for _, item := range data {
-		for _, row := range item.RowData {
-			for _, cell := range row.Values {
-				newrows = append(newrows, cell.FormattedValue)
-				break
-			}
-		}
-	}
-	t.setAccess(newrows)
-
-	return
 }
 
 func (t *TablesProvider) updateKeys(data []*sheets.GridData) {
@@ -252,8 +230,6 @@ func (t *TablesProvider) updateKeys(data []*sheets.GridData) {
 	}
 
 	t.setKeys(newrows)
-
-	return
 }
 
 func (t *TablesProvider) update() error {
@@ -270,9 +246,6 @@ func (t *TablesProvider) update() error {
 		case encryptedTitle:
 			t.encryptedID = sheet.Properties.SheetId
 			t.updateEncrypted(sheet.Data)
-		case accessTitle:
-			t.accessID = sheet.Properties.SheetId
-			t.updateAccess(sheet.Data)
 		case keysTitle:
 			t.keysID = sheet.Properties.SheetId
 			t.updateKeys(sheet.Data)
@@ -307,21 +280,6 @@ func (s *TablesProvider) GetEncrypted() (rows [][]string) {
 	s.mx.RLock()
 	rows = make([][]string, len(s.encrypted))
 	copy(rows, s.encrypted)
-	s.mx.RUnlock()
-	return rows
-}
-
-func (s *TablesProvider) setAccess(rows []string) {
-	s.mx.Lock()
-	s.access = make([]string, len(rows))
-	copy(s.access, rows)
-	s.mx.Unlock()
-}
-
-func (s *TablesProvider) GetAccess() (rows []string) {
-	s.mx.RLock()
-	rows = make([]string, len(s.access))
-	copy(rows, s.access)
 	s.mx.RUnlock()
 	return rows
 }

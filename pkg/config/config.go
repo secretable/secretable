@@ -27,12 +27,13 @@ import (
 
 type Config struct {
 	filePath          string
-	TelegramBotToken  string `yaml:"telegram_bot_token"`
-	GoogleCredentials string `yaml:"google_credentials_file"`
-	SpreadsheetID     string `yaml:"spreadsheet_id"`
-	CleanupTimeout    int    `yaml:"cleanup_timeout"`
-	Unencrypted       bool   `yaml:"unencrypted"`
-	Salt              string `yaml:"salt"`
+	TelegramBotToken  string   `yaml:"telegram_bot_token"`
+	GoogleCredentials string   `yaml:"google_credentials_file"`
+	SpreadsheetID     string   `yaml:"spreadsheet_id"`
+	CleanupTimeout    int      `yaml:"cleanup_timeout"`
+	Unencrypted       bool     `yaml:"unencrypted"`
+	Salt              string   `yaml:"salt"`
+	AllowedList       []string `yaml:"allowed_list"`
 }
 
 func ParseFromFile(path string) (config *Config, err error) {

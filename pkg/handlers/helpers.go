@@ -47,9 +47,9 @@ func (h *Handler) sendMessageWithoutCleanup(m *tb.Message, msg string) {
 	}
 }
 
-func (h *Handler) hasAccess(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message) bool {
+func (h *Handler) hasAccess(m *tb.Message) bool {
 	id := fmt.Sprint(m.Chat.ID)
-	for _, a := range tp.GetAccess() {
+	for _, a := range h.Config.AllowedList {
 		if a == id {
 			return true
 		}
