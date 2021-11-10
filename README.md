@@ -2,21 +2,6 @@
 
 Secretable is a telegram bot for managing passwords and others secrets stored in Google Sheets. Convenient management of your secrets in the messenger. Strong encryption AES256 + PKCS 8 + PBKDF2. Using Google Sheets as storage allows you to track changes, easily make backups, and work without encryption with raw data. Share passwords for other users and chats.
 
-### About security:
-- In encrypted mode, Google Sheets do not store any open data other than description.
-
-- In the environment in which the bot is launched, the "salt" is generated and stored, which is necessary for encryption using the master password.
-
-- If the master password is compromised, then this is not enough to decrypt the data, without salt it is impossible to decrypt the stored data.
-
-- When the master password is reset, the salt is re-generated.
-
-- With the master password, not the data is encrypted, but the private key with which this data is encrypted, which allows you to painlessly change the master password without changing or re-encrypting the data.
-
-- The bot works only in pull mode, independently requesting data from Telegram servers, so there is no need to open ports, firewall settings, and exclude influence and vulnerabilities from the http server.
-
-**WARNING:** After changing the master password, the salt changes, which is stored in your config file.
-
 ## Install
 To install the bot, just download the binary file of the latest release for your OS from the [releases page](https://github.com/secretable/secretable/releases)
 
@@ -68,3 +53,17 @@ Application Options:
 Help Options:
   -h, --help    Show this help message
 ```
+### About security:
+- In encrypted mode, Google Sheets do not store any open data other than description.
+
+- In the environment in which the bot is launched, the "salt" is generated and stored, which is necessary for encryption using the master password.
+
+- If the master password is compromised, then this is not enough to decrypt the data, without salt it is impossible to decrypt the stored data.
+
+- When the master password is reset, the salt is re-generated.
+
+- With the master password, not the data is encrypted, but the private key with which this data is encrypted, which allows you to painlessly change the master password without changing or re-encrypting the data.
+
+- The bot works only in pull mode, independently requesting data from Telegram servers, so there is no need to open ports, firewall settings, and exclude influence and vulnerabilities from the http server.
+
+**WARNING:** After changing the master password, the salt changes, which is stored in your config file.
