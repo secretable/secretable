@@ -40,6 +40,7 @@ spreadsheet_id: "Spreadsheet ID"
 cleanup_timeout: 30 # Received and send messages cleanup timeout in seconds
 unencrypted: false # Unencrypted mode
 salt: "Salt" # Salt for encryption with a master password. If not specified, a new one is generated and setted
+allowed_list: [] # Allowed list of telegram chat id
 ```
 
 Help command:
