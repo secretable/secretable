@@ -16,12 +16,12 @@ package config
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"secretable/pkg/log"
 
+	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -37,35 +37,44 @@ type Config struct {
 
 func ParseFromFile(path string) (config *Config, err error) {
 	config = new(Config)
+
 	file, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, "mkdir")
 			}
+
 			if file, err = os.Create(path); err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, "create file")
 			}
+
 			log.Info("📝 Created config file " + path)
 		} else {
-			return nil, err
+			return nil, errors.Wrap(err, "open file")
 		}
 	}
 
 	defer file.Close()
 
-	if err = yaml.NewDecoder(file).Decode(config); err != nil && err != io.EOF {
-		return nil, err
+	if err = yaml.NewDecoder(file).Decode(config); err != nil && !errors.Is(err, io.EOF) {
+		return nil, errors.Wrap(err, "decode yaml file")
 	}
 
 	config.filePath = path
+
 	return config, nil
 }
 
 func UpdateFile(config *Config) error {
 	buf := bytes.NewBuffer([]byte{})
 	if err := yaml.NewEncoder(buf).Encode(config); err != nil {
-		return nil
+		return errors.Wrap(err, "encode to yaml")
 	}
-	return os.WriteFile(config.filePath, buf.Bytes(), os.ModePerm)
+
+	if err := os.WriteFile(config.filePath, buf.Bytes(), os.ModePerm); err != nil {
+		return errors.Wrap(err, "write file")
+	}
+
+	return nil
 }

@@ -26,14 +26,10 @@ import (
 	"golang.org/x/crypto/pbkdf2"
 )
 
-var (
-	curve    = elliptic.P521
-	hashSum  = sha512.Sum512
-	hashNew  = sha512.New
-	hashSize = sha512.Size
-
-	AESKeySize = 32
-	NonceSize  = 12
+const (
+	AESKeySize   = 32
+	NonceSize    = 12
+	NumbIterates = 200000
 )
 
 func EncryptWithPhrase(phrase, salt, nonce, plaintext []byte) (cipher []byte, err error) {
@@ -41,6 +37,7 @@ func EncryptWithPhrase(phrase, salt, nonce, plaintext []byte) (cipher []byte, er
 	if err != nil {
 		return nil, err
 	}
+
 	return gcm.Seal(nil, nonce, plaintext, nil), err
 }
 
@@ -60,11 +57,12 @@ func DecryptWithPhrase(phrase, salt, nonce []byte, ciphertext []byte) ([]byte, e
 
 func SHA512(s string) []byte {
 	b := sha512.Sum512([]byte(s))
+
 	return b[:]
 }
 
 func GeneratePrivKey() (priv *ecdsa.PrivateKey, err error) {
-	priv, err = ecdsa.GenerateKey(curve(), rand.Reader)
+	priv, err = ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	if err != nil {
 		return nil, errors.Wrap(err, "ecdsa generate key")
 	}
@@ -74,12 +72,18 @@ func GeneratePrivKey() (priv *ecdsa.PrivateKey, err error) {
 
 func DeriveCipher(password, keySalt []byte) (cipher.AEAD, error) {
 	block, err := aes.NewCipher(
-		pbkdf2.Key(password, keySalt, 200000, AESKeySize, hashNew),
+		pbkdf2.Key(password, keySalt, NumbIterates, AESKeySize, sha512.New),
 	)
 	if err != nil {
 		return nil, errors.Wrap(err, "aes new cipher")
 	}
-	return cipher.NewGCM(block)
+
+	c, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, errors.Wrap(err, "new gcm")
+	}
+
+	return c, nil
 }
 
 func MakeRandom(l int) ([]byte, error) {

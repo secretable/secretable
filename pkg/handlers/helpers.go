@@ -17,7 +17,6 @@ package handlers
 import (
 	"crypto/ecdsa"
 	"crypto/x509"
-	"errors"
 	"fmt"
 	"html"
 	"secretable/pkg/crypto"
@@ -26,13 +25,20 @@ import (
 	"time"
 
 	"github.com/mr-tron/base58/base58"
+	"github.com/pkg/errors"
 	tb "gopkg.in/tucnak/telebot.v2"
+)
+
+var (
+	ErrMissingKey    = errors.New("missing private key")
+	ErrInvalidFormat = errors.New("invalid format")
 )
 
 func (h *Handler) sendMessage(m *tb.Message, msg string) {
 	resp, err := h.Bot.Send(m.Chat, msg, tb.Silent, tb.ModeHTML)
 	if err != nil {
 		log.Error("Unable to send a message to telegram: "+err.Error(), "chat_id", m.Chat.ID, "message", msg)
+
 		return
 	}
 
@@ -43,23 +49,25 @@ func (h *Handler) sendMessageWithoutCleanup(m *tb.Message, msg string) {
 	_, err := h.Bot.Send(m.Chat, msg, tb.Silent, tb.ModeHTML)
 	if err != nil {
 		log.Error("Unable to send a message to telegram"+err.Error(), "chat_id", m.Chat.ID, "message", msg)
+
 		return
 	}
 }
 
-func (h *Handler) hasAccess(m *tb.Message) bool {
-	id := fmt.Sprint(m.Chat.ID)
+func (h *Handler) hasAccess(msg *tb.Message) bool {
+	id := fmt.Sprint(msg.Chat.ID)
 	for _, a := range h.Config.AllowedList {
 		if a == id {
 			return true
 		}
 	}
 
-	h.sendMessage(m, "Access forbidden")
+	h.sendMessage(msg, "Access forbidden")
+
 	return false
 }
 
-func getPrivkeyAsBytes(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message, salt, masterPass string) ([]byte, bool, error) {
+func getPrivkeyAsBytes(tp *tables.TablesProvider, salt, masterPass string) ([]byte, bool, error) {
 	keys := tp.GetKeys()
 	if len(keys) == 0 {
 		return nil, false, nil
@@ -67,35 +75,37 @@ func getPrivkeyAsBytes(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message, salt
 
 	key, err := base58.Decode(keys[0])
 	if err != nil {
-		return nil, false, fmt.Errorf("base58 decode: %s", err.Error())
+		return nil, false, errors.Wrap(err, "base58 decode")
 	}
-	if len(key) < 12 {
-		return nil, false, fmt.Errorf("invalid format")
+
+	if len(key) < crypto.NonceSize {
+		return nil, false, ErrInvalidFormat
 	}
-	nonce := key[:12]
-	encprivkey := key[12:]
+
+	nonce := key[:crypto.NonceSize]
+	encprivkey := key[crypto.NonceSize:]
 
 	decPrivkey, err := crypto.DecryptWithPhrase([]byte(masterPass), []byte(salt), nonce, encprivkey)
 	if err != nil {
-		return nil, false, fmt.Errorf("decrypt with phrase: %s", err.Error())
+		return nil, false, errors.Wrap(err, "decrypt with phrase")
 	}
 
 	return decPrivkey, true, nil
 }
 
-func getPrivkey(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message, salt, masterPass string) (*ecdsa.PrivateKey, error) {
-	decPrivkey, ok, err := getPrivkeyAsBytes(b, tp, m, salt, masterPass)
+func getPrivkey(tp *tables.TablesProvider, salt, masterPass string) (*ecdsa.PrivateKey, error) {
+	decPrivkey, ok, err := getPrivkeyAsBytes(tp, salt, masterPass)
 	if err != nil {
 		return nil, err
 	}
 
 	if !ok {
-		return nil, errors.New("missing private key")
+		return nil, ErrMissingKey
 	}
 
 	privkey, err := x509.ParsePKCS8PrivateKey(decPrivkey)
 	if err != nil {
-		return nil, fmt.Errorf("parse pkcs8: %s", err.Error())
+		return nil, errors.Wrap(err, "parse pkcs8")
 	}
 
 	return privkey.(*ecdsa.PrivateKey), nil
@@ -112,6 +122,7 @@ func makeQueryResponse(index int, row []string) string {
 
 func cleanupMessage(b *tb.Bot, m *tb.Message, cleanupTime int) {
 	time.Sleep(time.Second * time.Duration(cleanupTime))
+
 	if err := b.Delete(m); err != nil {
 		log.Error("Unable to delete a message to telegram: "+err.Error(), "chat_id", m.Chat.ID)
 	}

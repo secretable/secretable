@@ -45,6 +45,8 @@ const (
 var localesFS embed.FS
 
 func main() {
+	log.Init()
+
 	opts, next, err := getFlags()
 	if err != nil {
 		log.Fatal(err.Error())
@@ -102,7 +104,6 @@ func main() {
 	)
 
 	log.Info("🚀 Start Telegram Bot")
-
 	bot.Start()
 }
 

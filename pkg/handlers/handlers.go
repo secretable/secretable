@@ -15,9 +15,10 @@
 package handlers
 
 import (
+	"crypto/rand"
 	"fmt"
 	"html"
-	"math/rand"
+	"math/big"
 	"secretable/pkg/config"
 	"secretable/pkg/crypto"
 	"secretable/pkg/localizator"
@@ -26,21 +27,20 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/mr-tron/base58/base58"
 	tb "gopkg.in/tucnak/telebot.v2"
 )
 
 const (
-	numbQueryColumns               = 3
-	numbSearchedUnencryptedColumns = 2
-	numbSearchedEncryptedColumns   = 1
+	numbQueryColumns = 3
 
 	genchars = "abcdefghijklmnopqrstuvwxyz" +
 		"ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
 		"0123456789" +
 		` !"#$%&'()*+,-./:;<=>?@[\]^_{|}~` + "`"
+
+	saltLength = 16
 )
 
 type Handler struct {
@@ -55,68 +55,67 @@ type Handler struct {
 	waitmpstates sync.Map
 }
 
-func (h *Handler) Delete(m *tb.Message) {
-	index, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(m.Text, "/delete")))
+func (h *Handler) Delete(msg *tb.Message) {
+	index, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(msg.Text, "/delete")))
 	if err != nil {
-		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "delete_resp_wrong_index"))
+		h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "delete_resp_wrong_index"))
+
 		return
 	}
 
-	err = h.TablesProvider.DeletEncrypted(index - 1)
+	err = h.TablesProvider.DeletSecrets(index - 1)
 
 	if err != nil {
-		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "delete_unable_delete"))
+		h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "delete_unable_delete"))
+
 		return
 	}
 
-	h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "delete_secret_deleted"))
-
+	h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "delete_secret_deleted"))
 }
 
-func (h *Handler) Generate(m *tb.Message) {
-	lengthStr := strings.TrimSpace(strings.TrimPrefix(m.Text, "/generate"))
+func (h *Handler) Generate(msg *tb.Message) {
+	lengthStr := strings.TrimSpace(strings.TrimPrefix(msg.Text, "/generate"))
 
 	lengthInt, _ := strconv.Atoi(lengthStr)
 	if lengthInt <= 0 || lengthInt > 128 {
 		lengthInt = 16
 	}
 
-	rand.Seed(time.Now().UnixNano())
-
 	chars := []rune(genchars)
+
 	var bld strings.Builder
+
 	for i := 0; i < lengthInt; i++ {
-		bld.WriteRune(chars[rand.Intn(len(chars))])
+		nBig, _ := rand.Int(rand.Reader, big.NewInt(int64(len(chars))))
+		bld.WriteRune(chars[int(nBig.Int64())])
 	}
-	h.sendMessage(m, fmt.Sprintf("<code>%v</code>", html.EscapeString(bld.String())))
+	h.sendMessage(msg, fmt.Sprintf("<code>%v</code>", html.EscapeString(bld.String())))
 }
 
 func (h *Handler) ID(m *tb.Message) {
 	h.sendMessage(m, fmt.Sprintf("<code>%v</code>", m.Chat.ID))
 }
 
-func (h *Handler) Query(m *tb.Message) {
-	h.queryEncrypted(m)
-}
-
-func (h *Handler) queryEncrypted(m *tb.Message) {
-	privkey, err := getPrivkey(h.Bot, h.TablesProvider, m, h.Config.Salt, h.mastePass)
+func (h *Handler) Query(msg *tb.Message) {
+	privkey, err := getPrivkey(h.TablesProvider, h.Config.Salt, h.mastePass)
 	if err != nil {
 		return
 	}
 
-	rows := h.TablesProvider.GetEncrypted()
+	rows := h.TablesProvider.GetSecrets()
 
-	q := strings.ToLower(m.Text)
+	query := strings.ToLower(msg.Text)
 
-	ok := false
-	for i, row := range rows {
+	exists := false
+
+	for index, row := range rows {
 		if len(row) != numbQueryColumns {
 			continue
 		}
 
 		for _, v := range row[:1] {
-			if strings.Contains(strings.ToLower(v), q) {
+			if strings.Contains(strings.ToLower(v), query) {
 				username, _ := base58.Decode(row[1])
 				password, _ := base58.Decode(row[2])
 
@@ -137,49 +136,57 @@ func (h *Handler) queryEncrypted(m *tb.Message) {
 				row[1] = string(decUsername)
 				row[2] = string(decPassword)
 
-				ok = true
-				h.sendMessage(m, makeQueryResponse(i+1, row))
+				exists = true
+
+				h.sendMessage(msg, makeQueryResponse(index+1, row))
+
 				break
 			}
 		}
-
 	}
 
-	if !ok {
-		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "query_no_secrets"))
+	if !exists {
+		h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "query_no_secrets"))
 	}
 }
 
-func (h *Handler) ResetPass(m *tb.Message) {
-	data := strings.TrimSpace(strings.TrimPrefix(m.Text, "/setpass"))
+func (h *Handler) ResetPass(msg *tb.Message) {
+	data := strings.TrimSpace(strings.TrimPrefix(msg.Text, "/setpass"))
 
 	if data == "" {
-		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_empty_pass"))
+		h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "setpass_empty_pass"))
+
 		return
 	}
 
-	privkeyBytes, ok, err := getPrivkeyAsBytes(h.Bot, h.TablesProvider, m, h.Config.Salt, h.mastePass)
+	privkeyBytes, ok, err := getPrivkeyAsBytes(h.TablesProvider, h.Config.Salt, h.mastePass)
 	if err != nil || !ok {
-		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
+		h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "setpass_unable_set"))
+
 		return
 	}
 
-	b, _ := crypto.MakeRandom(16)
+	b, _ := crypto.MakeRandom(saltLength)
 	oldSalt := h.Config.Salt
 	h.Config.Salt = base58.Encode(b)
+
 	err = config.UpdateFile(h.Config)
 	if err != nil {
-		h.Config.Salt = oldSalt
 		log.Error("Update config: " + err.Error())
-		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
+
+		h.Config.Salt = oldSalt
+		h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "setpass_unable_set"))
+
 		return
 	}
 
 	nonce, _ := crypto.MakeRandom(crypto.NonceSize)
+
 	cypher, err := crypto.EncryptWithPhrase([]byte(data), []byte(h.Config.Salt), nonce, privkeyBytes)
 	if err != nil {
 		log.Error("Encrypt with password: " + err.Error())
-		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
+		h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "setpass_unable_set"))
+
 		return
 	}
 
@@ -187,17 +194,18 @@ func (h *Handler) ResetPass(m *tb.Message) {
 
 	if err = h.TablesProvider.SetKey(base58.Encode(cypher)); err != nil {
 		log.Error("Store encrypted key to table: " + err.Error())
-		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpass_unable_set"))
+		h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "setpass_unable_set"))
+
 		return
 	}
 
 	h.mastePass = data
-	h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "setpasspass_setted"))
+	h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "setpasspass_setted"))
 }
 
-func (h *Handler) Set(m *tb.Message) {
-	h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "add_resp_command"))
-	h.setstates.Store(m.Chat.ID, true)
+func (h *Handler) Set(msg *tb.Message) {
+	h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "add_resp_command"))
+	h.setstates.Store(msg.Chat.ID, true)
 }
 
 func (h *Handler) MakeStart(infoMsg string) func(m *tb.Message) {

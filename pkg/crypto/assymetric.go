@@ -21,26 +21,41 @@ import (
 	"crypto/elliptic"
 	"crypto/hmac"
 	"crypto/rand"
-	"errors"
+	"crypto/sha512"
+
+	"github.com/pkg/errors"
 )
 
-func EncryptWithPub(pub *ecdsa.PublicKey, in []byte) (out []byte, err error) {
-	ephemeral, err := ecdsa.GenerateKey(curve(), rand.Reader)
+var (
+	ErrPaddingIncorrect = errors.New("padding incorrect")
+	ErrInvalidMAC       = errors.New("invalid MAC")
+	ErrGenerateEncKey   = errors.New("failed to generate encryption key")
+	ErrInvalidPublicKey = errors.New("invalid public key")
+	ErrInvalidCipher    = errors.New("invalid ciphertext")
+)
+
+func EncryptWithPub(pub *ecdsa.PublicKey, input []byte) (out []byte, err error) {
+	ephemeral, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
 	if err != nil {
 		return
 	}
+
 	x, _ := pub.Curve.ScalarMult(pub.X, pub.Y, ephemeral.D.Bytes())
+
 	if x == nil {
-		return nil, errors.New("failed to generate encryption key")
+		return nil, ErrGenerateEncKey
 	}
-	shared := hashSum(x.Bytes())
+
+	shared := sha512.Sum512(x.Bytes())
+
 	iv, err := makeRandom(16)
 	if err != nil {
 		return
 	}
 
-	paddedIn := addPadding(in)
-	ct, err := encryptCBC(paddedIn, iv, shared[:32])
+	paddedIn := addPadding(input)
+
+	encdata, err := encryptCBC(paddedIn, iv, shared[:32])
 	if err != nil {
 		return
 	}
@@ -50,51 +65,55 @@ func EncryptWithPub(pub *ecdsa.PublicKey, in []byte) (out []byte, err error) {
 	out[0] = byte(len(ephPub))
 	copy(out[1:], ephPub)
 	copy(out[1+len(ephPub):], iv)
-	out = append(out, ct...)
+	out = append(out, encdata...)
 
-	h := hmac.New(hashNew, shared[32:])
+	h := hmac.New(sha512.New, shared[32:])
 	h.Write(iv)
-	h.Write(ct)
-	out = h.Sum(out)
-	return
+	h.Write(encdata)
+
+	return h.Sum(out), nil
 }
 
-func DecryptWithPriv(priv *ecdsa.PrivateKey, in []byte) (out []byte, err error) {
-	if len(in) == 0 {
-		return nil, errors.New("invalid ciphertext")
-	}
-	ephLen := int(in[0])
-	ephPub := in[1 : 1+ephLen]
-	ct := in[1+ephLen:]
-	if len(ct) < (hashSize + aes.BlockSize) {
-		return nil, errors.New("invalid ciphertext")
+func DecryptWithPriv(priv *ecdsa.PrivateKey, cipher []byte) (out []byte, err error) {
+	if len(cipher) == 0 {
+		return nil, ErrInvalidCipher
 	}
 
-	x, y := elliptic.Unmarshal(curve(), ephPub)
+	ephLen := int(cipher[0])
+	ephPub := cipher[1 : 1+ephLen]
+	encdata := cipher[1+ephLen:]
+
+	if len(encdata) < (sha512.Size + aes.BlockSize) {
+		return nil, ErrInvalidCipher
+	}
+
+	x, y := elliptic.Unmarshal(elliptic.P521(), ephPub)
 	if x == nil {
-		return nil, errors.New("invalid public key")
+		return nil, ErrInvalidPublicKey
 	}
 
 	x, _ = priv.Curve.ScalarMult(x, y, priv.D.Bytes())
 	if x == nil {
-		return nil, errors.New("failed to generate encryption key")
+		return nil, ErrGenerateEncKey
 	}
-	shared := hashSum(x.Bytes())
 
-	tagStart := len(ct) - hashSize
-	h := hmac.New(hashNew, shared[32:])
-	h.Write(ct[:tagStart])
+	shared := sha512.Sum512(x.Bytes())
+
+	tagStart := len(encdata) - sha512.Size
+	h := hmac.New(sha512.New, shared[32:])
+	h.Write(encdata[:tagStart])
 	mac := h.Sum(nil)
-	if !hmac.Equal(mac, ct[tagStart:]) {
-		return nil, errors.New("invalid MAC")
+
+	if !hmac.Equal(mac, encdata[tagStart:]) {
+		return nil, ErrInvalidMAC
 	}
 
-	paddedOut, err := decryptCBC(ct[aes.BlockSize:tagStart], ct[:aes.BlockSize], shared[:32])
+	paddedOut, err := decryptCBC(encdata[aes.BlockSize:tagStart], encdata[:aes.BlockSize], shared[:32])
 	if err != nil {
 		return
 	}
-	out, err = removePadding(paddedOut)
-	return
+
+	return removePadding(paddedOut)
 }
 
 func decryptCBC(data, iv, key []byte) (decryptedData []byte, err error) {
@@ -125,22 +144,26 @@ func encryptCBC(data, iv, key []byte) (encryptedData []byte, err error) {
 
 func makeRandom(length int) ([]byte, error) {
 	bytes := make([]byte, length)
-	_, err := rand.Read(bytes)
-	return bytes, err
-}
-
-func removePadding(b []byte) ([]byte, error) {
-	l := int(b[len(b)-1])
-	if l > 32 {
-		return nil, errors.New("padding incorrect")
+	if _, err := rand.Read(bytes); err != nil {
+		return nil, errors.Wrap(err, "random read")
 	}
 
-	return b[:len(b)-l], nil
+	return bytes, nil
 }
 
-func addPadding(b []byte) []byte {
-	l := 32 - len(b)%32
+func removePadding(body []byte) ([]byte, error) {
+	l := int(body[len(body)-1])
+	if l > 32 {
+		return nil, ErrPaddingIncorrect
+	}
+
+	return body[:len(body)-l], nil
+}
+
+func addPadding(body []byte) []byte {
+	l := 32 - len(body)%32
 	padding := make([]byte, l)
 	padding[l-1] = byte(l)
-	return append(b, padding...)
+
+	return append(body, padding...)
 }

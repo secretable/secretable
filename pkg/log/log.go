@@ -25,7 +25,7 @@ const (
 	skipFrameCount = 4
 )
 
-func init() {
+func Init() {
 	cw := zerolog.NewConsoleWriter()
 	cw.Out = os.Stderr
 	cw.TimeFormat = "02 Jan 06 15:04:05 MST"
@@ -52,10 +52,9 @@ func Fatal(msg string, pairs ...interface{}) {
 	printLog(log.Fatal(), msg, pairs...)
 }
 
-func printLog(e *zerolog.Event, msg string, pairs ...interface{}) {
-	var (
-		k string
-	)
+func printLog(event *zerolog.Event, msg string, pairs ...interface{}) {
+	k := ""
+
 	for i, kv := range pairs {
 		if i%2 == 0 {
 			v, ok := kv.(string)
@@ -63,9 +62,9 @@ func printLog(e *zerolog.Event, msg string, pairs ...interface{}) {
 				k = v
 			}
 		} else {
-			e.Interface(k, kv)
+			event.Interface(k, kv)
 		}
 	}
 
-	e.Msg(msg)
+	event.Msg(msg)
 }
