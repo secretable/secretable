@@ -44,7 +44,6 @@ const (
 )
 
 type Handler struct {
-	EncriptionMode bool
 	Bot            *tb.Bot
 	TablesProvider *tables.TablesProvider
 	Locales        *localizator.Localizator
@@ -63,11 +62,7 @@ func (h *Handler) Delete(m *tb.Message) {
 		return
 	}
 
-	if h.EncriptionMode {
-		err = h.TablesProvider.DeletEncrypted(index - 1)
-	} else {
-		err = h.TablesProvider.DeletSecrets(index - 1)
-	}
+	err = h.TablesProvider.DeletEncrypted(index - 1)
 
 	if err != nil {
 		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "delete_unable_delete"))
@@ -101,35 +96,7 @@ func (h *Handler) ID(m *tb.Message) {
 }
 
 func (h *Handler) Query(m *tb.Message) {
-	if h.EncriptionMode {
-		h.queryEncrypted(m)
-	} else {
-		h.query(m)
-	}
-}
-
-func (h *Handler) query(m *tb.Message) {
-	rows := h.TablesProvider.GetSecrets()
-	q := strings.ToLower(m.Text)
-
-	ok := false
-	for i, row := range rows {
-		if len(row) != numbQueryColumns {
-			continue
-		}
-
-		for _, v := range row[:2] {
-			if strings.Contains(strings.ToLower(v), q) {
-				ok = true
-				h.sendMessage(m, makeQueryResponse(i, row))
-				break
-			}
-		}
-	}
-
-	if !ok {
-		h.sendMessage(m, h.Locales.Get(m.Sender.LanguageCode, "query_no_secrets"))
-	}
+	h.queryEncrypted(m)
 }
 
 func (h *Handler) queryEncrypted(m *tb.Message) {
@@ -184,10 +151,6 @@ func (h *Handler) queryEncrypted(m *tb.Message) {
 }
 
 func (h *Handler) ResetPass(m *tb.Message) {
-	if !h.EncriptionMode {
-		return
-	}
-
 	data := strings.TrimSpace(strings.TrimPrefix(m.Text, "/setpass"))
 
 	if data == "" {

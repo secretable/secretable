@@ -31,7 +31,6 @@ type Config struct {
 	GoogleCredentials string   `yaml:"google_credentials_file"`
 	SpreadsheetID     string   `yaml:"spreadsheet_id"`
 	CleanupTimeout    int      `yaml:"cleanup_timeout"`
-	Unencrypted       bool     `yaml:"unencrypted"`
 	Salt              string   `yaml:"salt"`
 	AllowedList       []string `yaml:"allowed_list"`
 }

@@ -47,7 +47,7 @@ func (h *Handler) AccessMiddleware(next func(m *tb.Message)) func(m *tb.Message)
 
 func (h *Handler) ControlMasterPassMiddleware(use bool, isSetHandler bool, next func(m *tb.Message)) func(m *tb.Message) {
 	return func(m *tb.Message) {
-		if !h.EncriptionMode || h.mastePass != "" {
+		if h.mastePass != "" {
 			next(m)
 			return
 		}
@@ -116,11 +116,8 @@ func (h *Handler) ControlSetSecretMiddleware(isSetHandler bool, next func(m *tb.
 		h.setstates.Delete(m.Chat.ID)
 
 		if isSetHandler && ok {
-			if h.EncriptionMode {
-				h.querySetNewEncryptedSecret(h.Bot, h.TablesProvider, m, h.mastePass)
-			} else {
-				h.querySetNewSecret(h.Bot, h.TablesProvider, m)
-			}
+			h.querySetNewEncryptedSecret(h.Bot, h.TablesProvider, m, h.mastePass)
+
 			return
 		}
 
@@ -132,23 +129,6 @@ func (h *Handler) LoggerMiddleware(next func(m *tb.Message)) func(m *tb.Message)
 		log.Info("📩 Message received: "+m.Text, "chat_id", m.Chat.ID, "fullname", m.Chat.FirstName+" "+m.Chat.LastName, "username", "@"+m.Chat.Username)
 		next(m)
 	}
-}
-
-func (h *Handler) querySetNewSecret(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message) {
-	arr := strings.Split(m.Text, "\n")
-
-	if len(arr) < numbAppendSecretsLines {
-		h.sendMessage(m, "Need 3 lines:\nDescription\nUser\nSecret\n\nTry repeat /set")
-		return
-	}
-	arr = arr[:numbAppendSecretsLines]
-
-	if err := tp.AppendSecrets(arr); err != nil {
-		h.sendMessage(m, "Error of appending new encrypted")
-		return
-	}
-
-	h.sendMessage(m, "New secret appened")
 }
 
 func (h *Handler) querySetNewEncryptedSecret(b *tb.Bot, tp *tables.TablesProvider, m *tb.Message, masterPass string) {

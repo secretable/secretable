@@ -96,7 +96,6 @@ func main() {
 			Bot:            bot,
 			TablesProvider: tableProvider,
 			Locales:        locales,
-			EncriptionMode: !conf.Unencrypted,
 			Config:         conf,
 		},
 		conf,
@@ -143,13 +142,7 @@ func getConf(path string) (conf *config.Config, err error) {
 	log.Info("📄 Spreadsheet ID: " + conf.SpreadsheetID)
 	log.Info("🧹 Cleanup timeout: " + fmt.Sprint(conf.CleanupTimeout, " sec"))
 
-	if conf.Unencrypted {
-		log.Info("🔓 Unecrypted mode")
-	} else {
-		log.Info("🔐 Encrypted mode")
-	}
-
-	if !conf.Unencrypted && conf.Salt == "" {
+	if conf.Salt == "" {
 		s, _ := crypto.MakeRandom(saltLength)
 		conf.Salt = base58.Encode(s)
 

@@ -1,6 +1,6 @@
 # Secretable
 
-Secretable is a telegram bot for managing passwords and others secrets stored in Google Sheets. Convenient management of your secrets in the messenger. Strong encryption AES256 + PKCS 8 + PBKDF2. Using Google Sheets as storage allows you to track changes, easily make backups, and work without encryption with raw data. Share passwords for other users and chats.
+Secretable is a telegram bot for managing passwords and others secrets stored in Google Sheets. Convenient management of your secrets in the messenger. Strong encryption AES256 + PKCS 8 + PBKDF2. Using Google Sheets as storage allows you to track changes, easily make backups. Share passwords for other users and chats.
 
 ## Install
 To install the bot, just download the binary file of the latest release for your OS from the [releases page](https://github.com/secretable/secretable/releases)
@@ -38,7 +38,6 @@ telegram_bot_token: "Telegram bot token"
 google_credentials_file: "Path to Google credentials JSON file"
 spreadsheet_id: "Spreadsheet ID"
 cleanup_timeout: 30 # Received and send messages cleanup timeout in seconds
-unencrypted: false # Unencrypted mode
 salt: "Salt" # Salt for encryption with a master password. If not specified, a new one is generated and setted
 ```
 
@@ -54,7 +53,7 @@ Help Options:
   -h, --help    Show this help message
 ```
 ### About security:
-- In encrypted mode, Google Sheets do not store any open data other than description.
+- Google Sheets do not store any open data other than description.
 
 - In the environment in which the bot is launched, the "salt" is generated and stored, which is necessary for encryption using the master password.
 

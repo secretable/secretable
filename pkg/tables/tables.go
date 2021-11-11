@@ -28,10 +28,7 @@ import (
 
 const (
 	encryptedRange = "Encrypted!A1:E"
-	secretsRange   = "Secrets!A1:C"
 	keysRange      = "Keys!A1:E"
-
-	secretsTitle   = "Secrets"
 	encryptedTitle = "Encrypted"
 	keysTitle      = "Keys"
 
@@ -42,13 +39,10 @@ type TablesProvider struct {
 	service       *sheets.Service
 	spreadsheetId string
 
-	secretsID   int64
 	encryptedID int64
 	keysID      int64
-
-	secrets   [][]string
-	encrypted [][]string
-	keys      []string
+	encrypted   [][]string
+	keys        []string
 
 	mx sync.RWMutex
 }
@@ -63,7 +57,7 @@ func NewTablesProvider(googleCredsFile, spreadsheetId string) (*TablesProvider, 
 	tp.service = service
 	tp.spreadsheetId = spreadsheetId
 
-	for _, tab := range []string{secretsTitle, encryptedTitle, keysTitle} {
+	for _, tab := range []string{encryptedTitle, keysTitle} {
 		err = createTable(service, spreadsheetId, tab)
 		if err != nil {
 			return nil, err
@@ -104,10 +98,6 @@ func createTable(service *sheets.Service, spreadsheetId, tableTitle string) (err
 	}
 
 	return nil
-}
-
-func (t *TablesProvider) AppendSecrets(arr []string) error {
-	return t.append(secretsRange, arr)
 }
 
 func (t *TablesProvider) AppendEncrypted(arr []string) error {
@@ -152,10 +142,6 @@ func (t *TablesProvider) SetKey(key string) error {
 	return nil
 }
 
-func (t *TablesProvider) DeletSecrets(index int) error {
-	return t.delete(t.secretsID, index)
-}
-
 func (t *TablesProvider) DeletEncrypted(index int) error {
 	return t.delete(t.encryptedID, index)
 }
@@ -181,24 +167,6 @@ func (t *TablesProvider) delete(sheetID int64, index int) error {
 	}
 
 	return nil
-}
-
-func (t *TablesProvider) updateSecrets(data []*sheets.GridData) {
-	var newrows [][]string
-
-	for _, item := range data {
-		for _, row := range item.RowData {
-			var newrowsItem []string
-
-			for _, cell := range row.Values {
-				newrowsItem = append(newrowsItem, cell.FormattedValue)
-			}
-
-			newrows = append(newrows, newrowsItem)
-		}
-	}
-
-	t.setSecrets(newrows)
 }
 
 func (t *TablesProvider) updateEncrypted(data []*sheets.GridData) {
@@ -240,9 +208,6 @@ func (t *TablesProvider) update() error {
 
 	for _, sheet := range ss.Sheets {
 		switch sheet.Properties.Title {
-		case secretsTitle:
-			t.secretsID = sheet.Properties.SheetId
-			t.updateSecrets(sheet.Data)
 		case encryptedTitle:
 			t.encryptedID = sheet.Properties.SheetId
 			t.updateEncrypted(sheet.Data)
@@ -254,26 +219,11 @@ func (t *TablesProvider) update() error {
 	return nil
 }
 
-func (s *TablesProvider) setSecrets(rows [][]string) {
-	s.mx.Lock()
-	s.secrets = make([][]string, len(rows))
-	copy(s.secrets, rows)
-	s.mx.Unlock()
-}
-
 func (s *TablesProvider) setEncrypted(rows [][]string) {
 	s.mx.Lock()
 	s.encrypted = make([][]string, len(rows))
 	copy(s.encrypted, rows)
 	s.mx.Unlock()
-}
-
-func (s *TablesProvider) GetSecrets() (rows [][]string) {
-	s.mx.RLock()
-	rows = make([][]string, len(s.secrets))
-	copy(rows, s.secrets)
-	s.mx.RUnlock()
-	return rows
 }
 
 func (s *TablesProvider) GetEncrypted() (rows [][]string) {
