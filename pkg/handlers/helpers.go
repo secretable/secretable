@@ -21,7 +21,7 @@ import (
 	"html"
 	"secretable/pkg/crypto"
 	"secretable/pkg/log"
-	"secretable/pkg/tables"
+	"secretable/pkg/providers"
 	"time"
 
 	"github.com/mr-tron/base58/base58"
@@ -67,7 +67,7 @@ func (h *Handler) hasAccess(msg *tb.Message) bool {
 	return false
 }
 
-func getPrivkeyAsBytes(tp *tables.TablesProvider, salt, masterPass string) ([]byte, bool, error) {
+func getPrivkeyAsBytes(tp providers.StorageProvider, salt, masterPass string) ([]byte, bool, error) {
 	k := tp.GetKey()
 
 	key, err := base58.Decode(k)
@@ -90,7 +90,7 @@ func getPrivkeyAsBytes(tp *tables.TablesProvider, salt, masterPass string) ([]by
 	return decPrivkey, true, nil
 }
 
-func getPrivkey(tp *tables.TablesProvider, salt, masterPass string) (*ecdsa.PrivateKey, error) {
+func getPrivkey(tp providers.StorageProvider, salt, masterPass string) (*ecdsa.PrivateKey, error) {
 	decPrivkey, ok, err := getPrivkeyAsBytes(tp, salt, masterPass)
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func getPrivkey(tp *tables.TablesProvider, salt, masterPass string) (*ecdsa.Priv
 	return privkey.(*ecdsa.PrivateKey), nil
 }
 
-func makeQueryResponse(index int, secret tables.SecretsData) string {
+func makeQueryResponse(index int, secret providers.SecretsData) string {
 	return fmt.Sprintf("(%d) <b>%s</b>\n<code>%s</code>\n<code>%s</code>",
 		index,
 		html.EscapeString(secret.Description),

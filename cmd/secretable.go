@@ -27,7 +27,7 @@ import (
 	"secretable/pkg/handlers"
 	"secretable/pkg/localizator"
 	"secretable/pkg/log"
-	"secretable/pkg/tables"
+	"secretable/pkg/providers"
 
 	tb "gopkg.in/tucnak/telebot.v2"
 
@@ -76,7 +76,7 @@ func main() {
 		return
 	}
 
-	tableProvider, err := tables.NewTablesProvider(conf.GoogleCredentials, conf.SpreadsheetID)
+	tableProvider, err := providers.NewGoogleSheetsStorage(conf.GoogleCredentials, conf.SpreadsheetID)
 	if err != nil {
 		log.Fatal("Unable to create tables provider: " + err.Error())
 	}

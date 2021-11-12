@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tables
+package providers
 
 import (
 	"context"
@@ -35,13 +35,7 @@ const (
 	updateTimeout = 10 // in sec
 )
 
-type SecretsData struct {
-	Description string
-	Username    string
-	Secret      string
-}
-
-type TablesProvider struct {
+type GoogleSheetsStorage struct {
 	service       *sheets.Service
 	spreadsheetID string
 
@@ -54,13 +48,13 @@ type TablesProvider struct {
 	mx sync.RWMutex
 }
 
-func NewTablesProvider(googleCredsFile, spreadsheetID string) (*TablesProvider, error) {
+func NewGoogleSheetsStorage(googleCredsFile, spreadsheetID string) (*GoogleSheetsStorage, error) {
 	service, err := sheets.NewService(context.Background(), option.WithCredentialsFile(googleCredsFile))
 	if err != nil {
 		return nil, errors.Wrap(err, "init sheets service")
 	}
 
-	tableProvider := new(TablesProvider)
+	tableProvider := new(GoogleSheetsStorage)
 	tableProvider.service = service
 	tableProvider.spreadsheetID = spreadsheetID
 
@@ -108,7 +102,7 @@ func createTable(service *sheets.Service, spreadsheetID, tableTitle string) (err
 	return nil
 }
 
-func (t *TablesProvider) AddSecrets(data SecretsData) error {
+func (t *GoogleSheetsStorage) AddSecret(data SecretsData) error {
 	_, err := t.service.Spreadsheets.Values.Append(t.spreadsheetID, secretesRange, &sheets.ValueRange{
 		Values: [][]interface{}{
 			{
@@ -129,7 +123,7 @@ func (t *TablesProvider) AddSecrets(data SecretsData) error {
 	return nil
 }
 
-func (t *TablesProvider) SetKey(key string) error {
+func (t *GoogleSheetsStorage) SetKey(key string) error {
 	_, err := t.service.Spreadsheets.Values.Update(t.spreadsheetID, keysRange, &sheets.ValueRange{
 		Values: [][]interface{}{
 			{
@@ -150,11 +144,11 @@ func (t *TablesProvider) SetKey(key string) error {
 	return nil
 }
 
-func (t *TablesProvider) DeleteSecrets(index int) error {
+func (t *GoogleSheetsStorage) DeleteSecret(index int) error {
 	return t.delete(t.secretsID, index)
 }
 
-func (t *TablesProvider) delete(sheetID int64, index int) error {
+func (t *GoogleSheetsStorage) delete(sheetID int64, index int) error {
 	_, err := t.service.Spreadsheets.BatchUpdate(t.spreadsheetID, &sheets.BatchUpdateSpreadsheetRequest{
 		Requests: []*sheets.Request{
 			{
@@ -178,7 +172,7 @@ func (t *TablesProvider) delete(sheetID int64, index int) error {
 	return nil
 }
 
-func (t *TablesProvider) updateSecrets(data []*sheets.GridData) {
+func (t *GoogleSheetsStorage) updateSecrets(data []*sheets.GridData) {
 	var newrows []SecretsData
 
 	for _, item := range data {
@@ -198,7 +192,7 @@ func (t *TablesProvider) updateSecrets(data []*sheets.GridData) {
 	t.setSecrets(newrows)
 }
 
-func (t *TablesProvider) updateKey(data []*sheets.GridData) {
+func (t *GoogleSheetsStorage) updateKey(data []*sheets.GridData) {
 	for _, item := range data {
 		if len(item.RowData) == 0 {
 			continue
@@ -220,7 +214,7 @@ func (t *TablesProvider) updateKey(data []*sheets.GridData) {
 	}
 }
 
-func (t *TablesProvider) update() error {
+func (t *GoogleSheetsStorage) update() error {
 	ss, err := t.service.Spreadsheets.Get(t.spreadsheetID).IncludeGridData(true).Do()
 	if err != nil {
 		return errors.Wrap(err, "get spreadsheet")
@@ -240,14 +234,14 @@ func (t *TablesProvider) update() error {
 	return nil
 }
 
-func (t *TablesProvider) setSecrets(secrets []SecretsData) {
+func (t *GoogleSheetsStorage) setSecrets(secrets []SecretsData) {
 	t.mx.Lock()
 	t.secrets = make([]SecretsData, len(secrets))
 	copy(t.secrets, secrets)
 	t.mx.Unlock()
 }
 
-func (t *TablesProvider) GetSecrets() (secrets []SecretsData) {
+func (t *GoogleSheetsStorage) GetSecrets() (secrets []SecretsData) {
 	t.mx.RLock()
 	secrets = make([]SecretsData, len(t.secrets))
 	copy(secrets, t.secrets)
@@ -256,13 +250,13 @@ func (t *TablesProvider) GetSecrets() (secrets []SecretsData) {
 	return secrets
 }
 
-func (t *TablesProvider) setKey(key string) {
+func (t *GoogleSheetsStorage) setKey(key string) {
 	t.mx.Lock()
 	t.key = key
 	t.mx.Unlock()
 }
 
-func (t *TablesProvider) GetKey() string {
+func (t *GoogleSheetsStorage) GetKey() string {
 	t.mx.RLock()
 	key := t.key
 	t.mx.RUnlock()

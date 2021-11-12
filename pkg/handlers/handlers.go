@@ -23,7 +23,7 @@ import (
 	"secretable/pkg/crypto"
 	"secretable/pkg/localizator"
 	"secretable/pkg/log"
-	"secretable/pkg/tables"
+	"secretable/pkg/providers"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,7 +45,7 @@ const (
 
 type Handler struct {
 	Bot            *tb.Bot
-	TablesProvider *tables.TablesProvider
+	TablesProvider providers.StorageProvider
 	Locales        *localizator.Localizator
 	Config         *config.Config
 
@@ -63,7 +63,7 @@ func (h *Handler) Delete(msg *tb.Message) {
 		return
 	}
 
-	err = h.TablesProvider.DeleteSecrets(index - 1)
+	err = h.TablesProvider.DeleteSecret(index - 1)
 
 	if err != nil {
 		h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "delete_unable_delete"))
