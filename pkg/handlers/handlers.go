@@ -63,7 +63,7 @@ func (h *Handler) Delete(msg *tb.Message) {
 		return
 	}
 
-	err = h.TablesProvider.DeletSecrets(index - 1)
+	err = h.TablesProvider.DeleteSecrets(index - 1)
 
 	if err != nil {
 		h.sendMessage(msg, h.Locales.Get(msg.Sender.LanguageCode, "delete_unable_delete"))
@@ -103,46 +103,40 @@ func (h *Handler) Query(msg *tb.Message) {
 		return
 	}
 
-	rows := h.TablesProvider.GetSecrets()
-
+	secrets := h.TablesProvider.GetSecrets()
 	query := strings.ToLower(msg.Text)
-
 	exists := false
 
-	for index, row := range rows {
-		if len(row) != numbQueryColumns {
+	for index, secret := range secrets {
+		if !strings.Contains(strings.ToLower(secret.Description), query) {
 			continue
 		}
 
-		for _, v := range row[:1] {
-			if strings.Contains(strings.ToLower(v), query) {
-				username, _ := base58.Decode(row[1])
-				password, _ := base58.Decode(row[2])
+		username, _ := base58.Decode(secret.Username)
+		password, _ := base58.Decode(secret.Secret)
 
-				decUsername, err := crypto.DecryptWithPriv(privkey, username)
-				if err != nil {
-					log.Error("Decrypt username with private key: " + err.Error())
+		decUsername, err := crypto.DecryptWithPriv(privkey, username)
+		if err != nil {
+			log.Error("Decrypt username with private key: " + err.Error())
 
-					break
-				}
-
-				decPassword, err := crypto.DecryptWithPriv(privkey, password)
-				if err != nil {
-					log.Error("Decrypt password with private key: " + err.Error())
-
-					break
-				}
-
-				row[1] = string(decUsername)
-				row[2] = string(decPassword)
-
-				exists = true
-
-				h.sendMessage(msg, makeQueryResponse(index+1, row))
-
-				break
-			}
+			break
 		}
+
+		decPassword, err := crypto.DecryptWithPriv(privkey, password)
+		if err != nil {
+			log.Error("Decrypt password with private key: " + err.Error())
+
+			break
+		}
+
+		secret.Username = string(decUsername)
+		secret.Secret = string(decPassword)
+
+		exists = true
+
+		h.sendMessage(msg, makeQueryResponse(index+1, secret))
+
+		break
 	}
 
 	if !exists {

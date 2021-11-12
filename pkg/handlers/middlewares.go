@@ -18,6 +18,7 @@ import (
 	"crypto/x509"
 	"secretable/pkg/crypto"
 	"secretable/pkg/log"
+	"secretable/pkg/tables"
 	"strings"
 
 	"github.com/mr-tron/base58/base58"
@@ -165,7 +166,11 @@ func (h *Handler) querySetNewSecretsSecret(msg *tb.Message, masterPass string) {
 	arr[1] = base58.Encode(cypher1)
 	arr[2] = base58.Encode(cypher2)
 
-	err = h.TablesProvider.AddSecrets(arr)
+	err = h.TablesProvider.AddSecrets(tables.SecretsData{
+		Description: arr[0],
+		Username:    arr[1],
+		Secret:      arr[2],
+	})
 
 	if err != nil {
 		h.sendMessage(msg, "Error of appending new encrypted")

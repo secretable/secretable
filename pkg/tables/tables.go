@@ -35,14 +35,21 @@ const (
 	updateTimeout = 10 // in sec
 )
 
+type SecretsData struct {
+	Description string
+	Username    string
+	Secret      string
+}
+
 type TablesProvider struct {
 	service       *sheets.Service
 	spreadsheetID string
 
 	secretsID int64
 	keysID    int64
-	secrets   [][]string
-	keys      []string
+
+	secrets []SecretsData
+	key     string
 
 	mx sync.RWMutex
 }
@@ -101,16 +108,12 @@ func createTable(service *sheets.Service, spreadsheetID, tableTitle string) (err
 	return nil
 }
 
-func (t *TablesProvider) AddSecrets(arr []string) error {
-	row := make([]interface{}, 0)
-
-	for _, v := range arr {
-		row = append(row, v)
-	}
-
+func (t *TablesProvider) AddSecrets(data SecretsData) error {
 	_, err := t.service.Spreadsheets.Values.Append(t.spreadsheetID, secretesRange, &sheets.ValueRange{
 		Values: [][]interface{}{
-			row,
+			{
+				data.Description, data.Username, data.Secret,
+			},
 		},
 		MajorDimension: "ROWS",
 	}).ValueInputOption("RAW").InsertDataOption("INSERT_ROWS").Do()
@@ -147,7 +150,7 @@ func (t *TablesProvider) SetKey(key string) error {
 	return nil
 }
 
-func (t *TablesProvider) DeletSecrets(index int) error {
+func (t *TablesProvider) DeleteSecrets(index int) error {
 	return t.delete(t.secretsID, index)
 }
 
@@ -176,36 +179,45 @@ func (t *TablesProvider) delete(sheetID int64, index int) error {
 }
 
 func (t *TablesProvider) updateSecrets(data []*sheets.GridData) {
-	var newrows [][]string
+	var newrows []SecretsData
 
 	for _, item := range data {
 		for _, row := range item.RowData {
-			var newrowsItem []string
-			for _, cell := range row.Values {
-				newrowsItem = append(newrowsItem, cell.FormattedValue)
+			if len(row.Values) < 3 {
+				continue
 			}
 
-			newrows = append(newrows, newrowsItem)
+			newrows = append(newrows, SecretsData{
+				Description: row.Values[0].FormattedValue,
+				Username:    row.Values[1].FormattedValue,
+				Secret:      row.Values[2].FormattedValue,
+			})
 		}
 	}
 
 	t.setSecrets(newrows)
 }
 
-func (t *TablesProvider) updateKeys(data []*sheets.GridData) {
-	var newrows []string
-
+func (t *TablesProvider) updateKey(data []*sheets.GridData) {
 	for _, item := range data {
-		for _, row := range item.RowData {
-			for _, cell := range row.Values {
-				newrows = append(newrows, cell.FormattedValue)
-
-				break
-			}
+		if len(item.RowData) == 0 {
+			continue
 		}
-	}
 
-	t.setKeys(newrows)
+		if len(item.RowData) == 0 {
+			continue
+		}
+
+		row := item.RowData[0]
+
+		if len(row.Values) == 0 {
+			continue
+		}
+
+		t.setKey(row.Values[0].FormattedValue)
+
+		break
+	}
 }
 
 func (t *TablesProvider) update() error {
@@ -221,41 +233,39 @@ func (t *TablesProvider) update() error {
 			t.updateSecrets(sheet.Data)
 		case keysTitle:
 			t.keysID = sheet.Properties.SheetId
-			t.updateKeys(sheet.Data)
+			t.updateKey(sheet.Data)
 		}
 	}
 
 	return nil
 }
 
-func (t *TablesProvider) setSecrets(rows [][]string) {
+func (t *TablesProvider) setSecrets(secrets []SecretsData) {
 	t.mx.Lock()
-	t.secrets = make([][]string, len(rows))
-	copy(t.secrets, rows)
+	t.secrets = make([]SecretsData, len(secrets))
+	copy(t.secrets, secrets)
 	t.mx.Unlock()
 }
 
-func (t *TablesProvider) GetSecrets() (rows [][]string) {
+func (t *TablesProvider) GetSecrets() (secrets []SecretsData) {
 	t.mx.RLock()
-	rows = make([][]string, len(t.secrets))
-	copy(rows, t.secrets)
+	secrets = make([]SecretsData, len(t.secrets))
+	copy(secrets, t.secrets)
 	t.mx.RUnlock()
 
-	return rows
+	return secrets
 }
 
-func (t *TablesProvider) setKeys(rows []string) {
+func (t *TablesProvider) setKey(key string) {
 	t.mx.Lock()
-	t.keys = make([]string, len(rows))
-	copy(t.keys, rows)
+	t.key = key
 	t.mx.Unlock()
 }
 
-func (t *TablesProvider) GetKeys() (rows []string) {
+func (t *TablesProvider) GetKey() string {
 	t.mx.RLock()
-	rows = make([]string, len(t.keys))
-	copy(rows, t.keys)
+	key := t.key
 	t.mx.RUnlock()
 
-	return rows
+	return key
 }

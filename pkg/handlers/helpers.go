@@ -68,12 +68,9 @@ func (h *Handler) hasAccess(msg *tb.Message) bool {
 }
 
 func getPrivkeyAsBytes(tp *tables.TablesProvider, salt, masterPass string) ([]byte, bool, error) {
-	keys := tp.GetKeys()
-	if len(keys) == 0 {
-		return nil, false, nil
-	}
+	k := tp.GetKey()
 
-	key, err := base58.Decode(keys[0])
+	key, err := base58.Decode(k)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "base58 decode")
 	}
@@ -111,12 +108,12 @@ func getPrivkey(tp *tables.TablesProvider, salt, masterPass string) (*ecdsa.Priv
 	return privkey.(*ecdsa.PrivateKey), nil
 }
 
-func makeQueryResponse(index int, row []string) string {
+func makeQueryResponse(index int, secret tables.SecretsData) string {
 	return fmt.Sprintf("(%d) <b>%s</b>\n<code>%s</code>\n<code>%s</code>",
 		index,
-		html.EscapeString(row[0]),
-		html.EscapeString(row[1]),
-		html.EscapeString(row[2]),
+		html.EscapeString(secret.Description),
+		html.EscapeString(secret.Username),
+		html.EscapeString(secret.Secret),
 	)
 }
 
