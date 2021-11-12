@@ -67,7 +67,10 @@ func (h *Handler) hasAccess(msg *tb.Message) bool {
 }
 
 func getPrivkeyAsBytes(tp providers.StorageProvider, salt, masterPass string) ([]byte, bool, error) {
-	k := tp.GetKey()
+	k, err := tp.GetKey()
+	if err != nil {
+		return nil, false, errors.Wrap(err, "get key")
+	}
 	if k == "" {
 		return nil, false, nil
 	}

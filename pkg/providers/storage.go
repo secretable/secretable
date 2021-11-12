@@ -23,7 +23,7 @@ type SecretsData struct {
 type StorageProvider interface {
 	AddSecret(SecretsData) error
 	DeleteSecret(index int) error
-	GetSecrets() []SecretsData
+	GetSecrets() ([]SecretsData, error)
 	SetKey(key string) error
-	GetKey() string
+	GetKey() (string, error)
 }

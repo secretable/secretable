@@ -241,13 +241,13 @@ func (t *GoogleSheetsStorage) setSecrets(secrets []SecretsData) {
 	t.mx.Unlock()
 }
 
-func (t *GoogleSheetsStorage) GetSecrets() (secrets []SecretsData) {
+func (t *GoogleSheetsStorage) GetSecrets() (secrets []SecretsData, err error) {
 	t.mx.RLock()
 	secrets = make([]SecretsData, len(t.secrets))
 	copy(secrets, t.secrets)
 	t.mx.RUnlock()
 
-	return secrets
+	return secrets, nil
 }
 
 func (t *GoogleSheetsStorage) setKey(key string) {
@@ -256,10 +256,10 @@ func (t *GoogleSheetsStorage) setKey(key string) {
 	t.mx.Unlock()
 }
 
-func (t *GoogleSheetsStorage) GetKey() string {
+func (t *GoogleSheetsStorage) GetKey() (string, error) {
 	t.mx.RLock()
 	key := t.key
 	t.mx.RUnlock()
 
-	return key
+	return key, nil
 }

@@ -103,7 +103,11 @@ func (h *Handler) Query(msg *tb.Message) {
 		return
 	}
 
-	secrets := h.TablesProvider.GetSecrets()
+	secrets, err := h.TablesProvider.GetSecrets()
+	if err != nil {
+		return
+	}
+
 	query := strings.ToLower(msg.Text)
 	exists := false
 
@@ -135,8 +139,6 @@ func (h *Handler) Query(msg *tb.Message) {
 		exists = true
 
 		h.sendMessage(msg, makeQueryResponse(index+1, secret))
-
-		break
 	}
 
 	if !exists {
