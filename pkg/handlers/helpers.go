@@ -55,9 +55,8 @@ func (h *Handler) sendMessageWithoutCleanup(m *tb.Message, msg string) {
 }
 
 func (h *Handler) hasAccess(msg *tb.Message) bool {
-	id := fmt.Sprint(msg.Chat.ID)
 	for _, a := range h.Config.AllowedList {
-		if a == id {
+		if a == msg.Chat.ID {
 			return true
 		}
 	}
@@ -69,6 +68,9 @@ func (h *Handler) hasAccess(msg *tb.Message) bool {
 
 func getPrivkeyAsBytes(tp providers.StorageProvider, salt, masterPass string) ([]byte, bool, error) {
 	k := tp.GetKey()
+	if k == "" {
+		return nil, false, nil
+	}
 
 	key, err := base58.Decode(k)
 	if err != nil {
