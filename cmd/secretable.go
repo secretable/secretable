@@ -76,9 +76,32 @@ func main() {
 		return
 	}
 
-	tableProvider, err := providers.NewGoogleSheetsStorage(conf.GoogleCredentials, conf.SpreadsheetID)
-	if err != nil {
-		log.Fatal("Unable to create tables provider: " + err.Error())
+	var tableProvider providers.StorageProvider
+
+	switch conf.StorageSource {
+	case "", "json_file":
+		if conf.JSONStorageFile == "" {
+			conf.JSONStorageFile = "./storage.json"
+		}
+
+		log.Info("🗂 Source: JSON Storage")
+		log.Info("📄 JSON Storage file: " + conf.JSONStorageFile)
+
+		tableProvider, err = providers.NewJSONStorage(conf.JSONStorageFile)
+		if err != nil {
+			log.Fatal("Unable to create tables provider: " + err.Error())
+		}
+
+	case "google_sheets":
+		log.Info("🗂 Source: Google Sheets storage")
+		log.Info("📝 Google credentials: " + conf.GoogleCredentials)
+		log.Info("📄 Spreadsheet ID: " + conf.SpreadsheetID)
+		tableProvider, err = providers.NewGoogleSheetsStorage(conf.GoogleCredentials, conf.SpreadsheetID)
+		if err != nil {
+			log.Fatal("Unable to create tables provider: " + err.Error())
+		}
+	default:
+		log.Fatal("Undefined storage source: " + conf.StorageSource)
 	}
 
 	bot, err := tb.NewBot(tb.Settings{
@@ -139,8 +162,6 @@ func getConf(path string) (conf *config.Config, err error) {
 		return nil, errors.Wrap(err, "parse config from file")
 	}
 
-	log.Info("📝 Google credentials: " + conf.GoogleCredentials)
-	log.Info("📄 Spreadsheet ID: " + conf.SpreadsheetID)
 	log.Info("🧹 Cleanup timeout: " + fmt.Sprint(conf.CleanupTimeout, " sec"))
 
 	if conf.Salt == "" {

@@ -1,12 +1,15 @@
 # Secretable
 
-Secretable is a telegram bot for managing passwords and others secrets stored in Google Sheets. Convenient management of your secrets in the messenger. Strong encryption AES256 + PKCS 8 + PBKDF2. Using Google Sheets as storage allows you to track changes, easily make backups. Share passwords for other users and chats.
+Secretable is a telegram bot for managing passwords and others secrets stored in file storage or Google Sheets. Convenient management of your secrets in the messenger with strong encryption AES256 + PKCS 8 + PBKDF2. 
 
 ## Install
 To install the bot, just download the binary file of the latest release for your OS from the [releases page](https://github.com/secretable/secretable/releases)
 
 ## Getting started
-### 1. Generate Google Credentials file to access tables via Google API
+### 1. Select source storage
+By default, source storage is **json_file**. If you want to use **google_sheets** , then follow these steps:
+
+##### 1.1 Generate Google Credentials file to access tables via Google API
 - Go to the  [Google Console](https://console.cloud.google.com/)  and create a new project for the bot.
 - Then go to the [APIs and Services > Credentials](https://console.cloud.google.com/apis/credentials) section
 - Сlick on the **CREATE CREDENTIALS** button and select **Service account**
@@ -15,7 +18,7 @@ To install the bot, just download the binary file of the latest release for your
 - Go to the settings of your service account in the **KEYS** section and click on the **Add key** button, select **Create new key** with the **JSON** type. Save the file.
 - Go to [APIs and Services > Library](https://console.cloud.google.com/apis/library) section and find the Google Sheets API. Click **ENABLE** button.
 
-### 2. Give the bot access to tables
+##### 1.2 Give the bot access to tables
 - Create a new document in Google Sheets.
 - Click on the **Share** button and add your service account as an editor
 - Сopy and save from the address bar of your browser spreadsheet id.
@@ -25,18 +28,26 @@ Part of the string `2EKulKXNueAgLzD7UHYiilwJE27gb4N7sj5eoAGlhr34` is the spreads
 ### 3. Create a telegram bot.
 Connect to the bot [BotFather](https://t.me/BotFather) and use the `/newbot` command to create a bot and save a token to access it.
 
-### 4. Run Secretable
-Start the downloaded bot release: `./secretable`
-
-### 5. Add access
+### 4. Add access
 Add your telegram chat id to the **allowed_list** section of config.
+
+### 5. Run Secretable
+Start the downloaded bot release: `./secretable`
 
 ## Usage
 To configure and run, you need to fill in the config file(default: ~/.secretable/config.yaml): 
 ```yaml
 telegram_bot_token: "Telegram bot token"
+
+storage_source: "source" # google_sheets or json_file
+
+# For google_sheets mode
 google_credentials_file: "Path to Google credentials JSON file"
 spreadsheet_id: "Spreadsheet ID"
+
+# For json_file mode
+json_storage_file: "Path to JSON storage file" # Default: ./storage.json
+
 cleanup_timeout: 30 # Received and send messages cleanup timeout in seconds
 salt: "Salt" # Salt for encryption with a master password. If not specified, a new one is generated and setted
 allowed_list: [] # Allowed list of telegram chat id
@@ -54,7 +65,7 @@ Help Options:
   -h, --help    Show this help message
 ```
 ### About security:
-- Google Sheets do not store any open data other than description.
+- Storage do not store any open data other than description.
 
 - In the environment in which the bot is launched, the "salt" is generated and stored, which is necessary for encryption using the master password.
 
@@ -67,3 +78,4 @@ Help Options:
 - The bot works only in pull mode, independently requesting data from Telegram servers, so there is no need to open ports, firewall settings, and exclude influence and vulnerabilities from the http server.
 
 **WARNING:** After changing the master password, the salt changes, which is stored in your config file.
+
